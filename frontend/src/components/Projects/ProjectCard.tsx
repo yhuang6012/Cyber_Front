@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Rocket, Building2, User, Phone, Package, Cpu, TrendingUp, DollarSign, Tag, Trash2, Edit } from 'lucide-react';
+import { CheckCircle2, Clock, Rocket, Hourglass, Building2, User, Phone, Package, Cpu, TrendingUp, DollarSign, Tag, Trash2, Edit } from 'lucide-react';
 import { ProjectItem } from '@/store/useAppStore';
 
 interface ProjectCardProps {
@@ -27,7 +27,7 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
         description: project.description,
         companyName: project.companyName,
         industry: project.industry,
-        founderName: project.founderName,
+        projectContact: project.projectContact,
         status: project.status,
       }, null, 2),
     };
@@ -42,6 +42,13 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
           <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
             <Clock className="size-3" />
             未受理
+          </div>
+        );
+      case 'pending_acceptance':
+        return (
+          <div className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 rounded-full flex-shrink-0">
+            <Hourglass className="size-3" />
+            待受理
           </div>
         );
       case 'accepted':
@@ -85,10 +92,10 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
                   {project.companyName}
                 </span>
               )}
-              {project.founderName && (
+              {project.projectContact && (
                 <span className="flex items-center gap-1">
                   <User className="size-3" />
-                  {project.founderName}
+                  {project.projectContact}
                 </span>
               )}
               {project.industry && (
@@ -165,28 +172,18 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
           </div>
         )}
 
-        {project.founderName && (
+        {project.projectContact && (
           <div className="flex items-start gap-2 text-sm">
             <User className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
             <div className="min-w-0">
-              <span className="font-medium">创始人：</span>
-              <span className="text-muted-foreground">{project.founderName}</span>
-              {project.founderContact && (
+              <span className="font-medium">联系人：</span>
+              <span className="text-muted-foreground">{project.projectContact}</span>
+              {project.contactInfo && (
                 <div className="flex items-center gap-1 mt-0.5">
                   <Phone className="size-3" />
-                  <span className="text-xs text-muted-foreground truncate">{project.founderContact}</span>
+                  <span className="text-xs text-muted-foreground truncate">{project.contactInfo}</span>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-
-        {project.projectLead && (
-          <div className="flex items-start gap-2 text-sm">
-            <User className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-            <div>
-              <span className="font-medium">负责人：</span>
-              <span className="text-muted-foreground">{project.projectLead}</span>
             </div>
           </div>
         )}
@@ -221,12 +218,12 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
           </div>
         )}
 
-        {project.fundingStatus && (
+        {project.financingHistory?.current_funding_need && (
           <div className="flex items-start gap-2 text-sm">
             <DollarSign className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
             <div className="min-w-0">
-              <span className="font-medium">融资情况：</span>
-              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{project.fundingStatus}</p>
+              <span className="font-medium">融资需求：</span>
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{project.financingHistory.current_funding_need}</p>
             </div>
           </div>
         )}

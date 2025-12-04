@@ -106,6 +106,31 @@ export interface AgentCompany {
   latest_finance_date?: string | null;
 }
 
+// 核心团队成员
+export interface CoreTeamMember {
+  name: string;
+  role?: string;
+  background?: string;
+}
+
+// 财务状况
+export interface FinancialStatus {
+  current?: string;
+  future?: string;
+}
+
+// 融资历史
+export interface FinancingHistory {
+  completed_rounds?: Array<{
+    round?: string;
+    amount?: string;
+    date?: string;
+    investors?: string[];
+  }>;
+  current_funding_need?: string;
+  funding_use?: string[];
+}
+
 export interface ProjectItem {
   id: string;
   name: string;
@@ -113,29 +138,29 @@ export interface ProjectItem {
   tags?: string[];
   sourceFileName?: string;
   createdAt: string;
+  updatedAt?: string;
   // Status
-  status: 'accepted' | 'pending' | 'established'; // 已受理 / 未受理 / 已立项
+  status: 'accepted' | 'pending' | 'established' | 'pending_acceptance'; // 已受理 / 未受理 / 已立项 / 待受理
   // Contact & Source
-  uploader?: string; // 项目来源（上传人）
-  founderName?: string; // 项目联系人（创始人）
-  founderContact?: string; // 联系方式
-  projectLead?: string; // 项目负责人
+  uploader?: string; // 项目来源（上传人 uploaded_by）
+  projectContact?: string; // 项目联系人
+  contactInfo?: string; // 联系方式
   // Company Info
   companyName?: string;
   companyAddress?: string;
   industry?: string; // 公司领域/所属行业
   // Team & Product
-  coreTeam?: string; // 核心团队描述
+  coreTeam?: CoreTeamMember[]; // 核心团队（数组）
   coreProduct?: string; // 核心产品
   coreTechnology?: string; // 核心技术
   // Market & Competition
-  competition?: string; // 竞争情况
+  competitionAnalysis?: string; // 竞争分析
   marketSize?: string; // 市场空间
   // Finance
-  financialStatus?: string; // 财务情况
-  fundingStatus?: string; // 融资情况
+  financialStatus?: FinancialStatus; // 财务情况
+  financingHistory?: FinancingHistory; // 融资历史
   // Keywords
-  keywords?: string[]; // 关键词（技术、团队背景、人才、融资相关）
+  keywords?: string[]; // 关键词
 }
 
 export interface UploadedFileMeta {
@@ -178,7 +203,14 @@ export interface SmartNoteItem {
 }
 
 interface AppState {
-  // Current User
+  // Auth
+  authToken: string | null;
+  authUser: { username: string; role?: string | null } | null;
+  setAuthToken: (token: string | null) => void;
+  setAuthUser: (user: { username: string; role?: string | null } | null) => void;
+  logout: () => void;
+
+  // Current User（兼容旧逻辑，值与 authUser.username 保持一致）
   currentUser: string;
   setCurrentUser: (name: string) => void;
   
@@ -243,7 +275,6 @@ interface AppState {
   removeProject: (id: string) => void;
   updateProject: (id: string, updates: Partial<ProjectItem>) => void;
   setProjects: (list: ProjectItem[]) => void;
-  addProjectsFromFiles: (files: File[]) => Promise<void>;
   uploadedFiles: UploadedFileMeta[];
   removeUploadedFiles: (ids: string[]) => void;
   
@@ -299,8 +330,18 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  // Current User
-  currentUser: '王芳', // 默认当前用户
+  // Auth & Current User
+  authToken: null,
+  authUser: null,
+  setAuthToken: (token: string | null) => set({ authToken: token }),
+  setAuthUser: (user) =>
+    set({
+      authUser: user,
+      currentUser: user?.username ?? '',
+    }),
+  logout: () => set({ authToken: null, authUser: null, currentUser: '' }),
+
+  currentUser: '',
   setCurrentUser: (name: string) => set({ currentUser: name }),
   
   // News state
@@ -477,118 +518,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     projects: state.projects.map(p => p.id === id ? { ...p, ...updates} : p)
   })),
   setProjects: (list: ProjectItem[]) => set({ projects: list }),
-  addProjectsFromFiles: async (files: File[]) => {
-    // Helpers
-    const parseCsv = async (file: File): Promise<ProjectItem[]> => {
-      const text = await file.text();
-      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
-      if (lines.length === 0) return [];
-      const [headerLine, ...dataLines] = lines;
-      const headers = headerLine.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-      const nameIdx =
-        headers.findIndex(h => ['name', 'project', 'title', '项目', '项目名称'].includes(h.toLowerCase())) >= 0
-          ? headers.findIndex(h => ['name', 'project', 'title', '项目', '项目名称'].includes(h.toLowerCase()))
-          : 0;
-      const descIdx =
-        headers.findIndex(h => ['description', 'desc', '摘要', '简介'].includes(h.toLowerCase()));
-      const now = new Date().toISOString();
-      const rows: ProjectItem[] = dataLines.map((line) => {
-        // naive CSV split; sufficient for simple uploads
-        const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
-        const name = (cells[nameIdx] ?? '').trim() || file.name;
-        const description = descIdx >= 0 ? (cells[descIdx] ?? '').trim() : undefined;
-        return {
-          id: crypto.randomUUID(),
-          name,
-          description,
-          status: 'pending',
-          tags: [],
-          sourceFileName: file.name,
-          createdAt: now,
-        };
-      });
-      return rows;
-    };
-    const toTextSummary = (text: string, max = 160) =>
-      text.replace(/\s+/g, ' ').slice(0, max).trim();
-
-    const newProjects: ProjectItem[] = [];
-    const newFileMetas: UploadedFileMeta[] = [];
-    for (const file of files) {
-      newFileMetas.push({
-        id: crypto.randomUUID(),
-        name: file.name,
-        size: file.size ?? 0,
-        type: file.type ?? '',
-        createdAt: new Date().toISOString(),
-      });
-      try {
-        if (file.type.includes('csv') || file.name.toLowerCase().endsWith('.csv')) {
-          const rows = await parseCsv(file);
-          newProjects.push(...rows);
-          continue;
-        }
-        if (file.type.includes('json') || file.name.toLowerCase().endsWith('.json')) {
-          const text = await file.text();
-          const data = JSON.parse(text);
-          if (Array.isArray(data)) {
-            for (const item of data) {
-              const name = String(item.name ?? item.title ?? item.project ?? file.name);
-              const description = item.description ?? item.desc ?? '';
-              newProjects.push({
-                id: crypto.randomUUID(),
-                name,
-                description,
-                status: 'pending',
-                tags: Array.isArray(item.tags) ? item.tags : [],
-                sourceFileName: file.name,
-                createdAt: new Date().toISOString(),
-              });
-            }
-          } else {
-            const name = String(data.name ?? data.title ?? data.project ?? file.name);
-            const description = data.description ?? data.desc ?? '';
-            newProjects.push({
-              id: crypto.randomUUID(),
-              name,
-              description,
-              status: 'pending',
-              tags: Array.isArray((data as any).tags) ? (data as any).tags : [],
-              sourceFileName: file.name,
-              createdAt: new Date().toISOString(),
-            });
-          }
-          continue;
-        }
-        // Fallback: treat as text; create one project per file
-        const text = await file.text().catch(() => '');
-        newProjects.push({
-          id: crypto.randomUUID(),
-          name: file.name.replace(/\.[^.]+$/, ''),
-          description: text ? toTextSummary(text) : undefined,
-          status: 'pending',
-          tags: [],
-          sourceFileName: file.name,
-          createdAt: new Date().toISOString(),
-        });
-      } catch {
-        // On parsing failure, still create a basic card
-        newProjects.push({
-          id: crypto.randomUUID(),
-          name: file.name.replace(/\.[^.]+$/, ''),
-          description: undefined,
-          status: 'pending',
-          tags: [],
-          sourceFileName: file.name,
-          createdAt: new Date().toISOString(),
-        });
-      }
-    }
-    set(state => ({ 
-      projects: [...newProjects, ...state.projects],
-      uploadedFiles: [...newFileMetas, ...state.uploadedFiles],
-    }));
-  },
   
   // Folder operations
   addFolder: (name: string, color?: string) => set(state => ({
@@ -769,3 +698,4 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { favorites: [fav, ...state.favorites] };
   }),
 }));
+

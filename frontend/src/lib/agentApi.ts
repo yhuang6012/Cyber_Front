@@ -40,12 +40,26 @@ export async function streamAgent(
   if (params.initial_search_query_count != null) body.initial_search_query_count = params.initial_search_query_count;
   if (params.company_lists && params.company_lists.length) body.company_lists = params.company_lists;
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'text/event-stream',
+  };
+
+  try {
+    // 如果已经登录，则在 Header 中附带 Token
+    // 这里使用 try/catch 避免在非 React 环境下导入 store 报错
+    const { useAppStore } = await import('@/store/useAppStore');
+    const token = useAppStore.getState().authToken;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {
+    // ignore
+  }
+
   const resp = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 

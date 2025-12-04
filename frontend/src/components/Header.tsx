@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageSquarePlus, CircleArrowLeft, CircleArrowRight, Newspaper, LayoutGrid, NotebookPen, Folder, Layers, Settings, Search, X, GraduationCap, Building2, User, FileText, Briefcase } from 'lucide-react';
+import { MessageSquarePlus, CircleArrowLeft, CircleArrowRight, Newspaper, LayoutGrid, NotebookPen, Folder, Layers, Search, X, GraduationCap, Building2, User, FileText, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -144,14 +144,14 @@ export function Header() {
             variant={activePanel === 'workspace' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setActivePanel('workspace')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 cursor-pointer"
           >
             <LayoutGrid className="size-5" />
             工作台
           </Button>
           
           {/* Latest News Button */}
-          <Button 
+          {/* <Button 
             variant={activePanel === 'news' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setActivePanel('news')}
@@ -159,14 +159,14 @@ export function Header() {
           >
             <Newspaper className="size-5" />
             资讯库
-          </Button>
+          </Button> */}
 
           {/* Additional Top-Level: 项目 */}
           <Button 
             variant={activePanel === 'projects' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setActivePanel('projects')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 cursor-pointer"
           >
             <Folder className="size-5" />
             项目库
@@ -177,21 +177,21 @@ export function Header() {
             variant={activePanel === 'knowledge' ? 'secondary' : 'ghost'}
             size="sm"
             onClick={() => setActivePanel('knowledge')}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 cursor-pointer"
           >
             <Layers className="size-5" />
             知识库
           </Button>
 
           {/* Additional Top-Level: 设置 */}
-          <Button 
+          {/* <Button 
             variant="ghost"
             size="sm"
             className="flex items-center gap-2"
           >
             <Settings className="size-5" />
             设置
-          </Button>
+          </Button> */}
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -199,7 +199,7 @@ export function Header() {
                 variant="ghost"
                 size="sm"
                 onClick={handleSearchOpen}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 cursor-pointer"
               >
                 <Search className="size-5" />
               </Button>
@@ -219,7 +219,7 @@ export function Header() {
               variant="ghost"
               size="sm"
               onClick={handleChatToggle}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 cursor-pointer"
             >
               <MessageSquarePlus className="size-6" />
               开启聊天
@@ -230,7 +230,7 @@ export function Header() {
               variant="ghost"
               size="sm"
               onClick={handleChatToggle}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 cursor-pointer"
             >
               {isChatExpanded ? (
                 <CircleArrowRight className="size-6" />
@@ -246,7 +246,7 @@ export function Header() {
               variant="ghost"
               size="sm"
               onClick={handleNewConversation}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 cursor-pointer"
             >
               <MessageSquarePlus className="size-6" />
               新对话
@@ -258,7 +258,7 @@ export function Header() {
             variant="ghost"
             size="sm"
             onClick={toggleSmartCanvas}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 cursor-pointer"
           >
             <NotebookPen className="size-6" />
             智选
@@ -303,7 +303,7 @@ export function Header() {
                     variant="ghost"
                     size="sm"
                     onClick={handleSearchClose}
-                    className="absolute right-2 top-1/2 -translate-y-1/2"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer"
                   >
                     <X className="size-5" />
                   </Button>
@@ -349,7 +349,7 @@ export function Header() {
                                   setActivePanel('news');
                                   handleSearchClose();
                                 }}
-                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors"
+                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
                               >
                                 <div className="font-medium text-sm line-clamp-1">{item.title}</div>
                                 <div className="text-xs text-muted-foreground line-clamp-2 mt-1">{item.content}</div>
@@ -381,7 +381,7 @@ export function Header() {
                                   setActivePanel('news');
                                   handleSearchClose();
                                 }}
-                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors"
+                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
                               >
                                 <div className="font-medium text-sm line-clamp-1">{item.title}</div>
                                 <div className="text-xs text-muted-foreground line-clamp-2 mt-1">{item.abstract}</div>
@@ -413,7 +413,7 @@ export function Header() {
                                   setActivePanel('news');
                                   handleSearchClose();
                                 }}
-                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors"
+                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
                               >
                                 <div className="font-medium text-sm line-clamp-1">{item.name}</div>
                                 <div className="text-xs text-muted-foreground line-clamp-2 mt-1">{item.description}</div>
@@ -449,7 +449,7 @@ export function Header() {
                                   setActivePanel('news');
                                   handleSearchClose();
                                 }}
-                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors"
+                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
                               >
                                 <div className="font-medium text-sm line-clamp-1">
                                   {item.name} {item.englishName && `(${item.englishName})`}
@@ -483,7 +483,7 @@ export function Header() {
                                   setActivePanel('projects');
                                   handleSearchClose();
                                 }}
-                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors"
+                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
                               >
                                 <div className="font-medium text-sm line-clamp-1">{item.name}</div>
                                 {item.description && (
@@ -521,7 +521,7 @@ export function Header() {
                                   setActivePanel('knowledge');
                                   handleSearchClose();
                                 }}
-                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors"
+                                className="w-full text-left p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer"
                               >
                                 <div className="font-medium text-sm line-clamp-1">{item.title}</div>
                                 <div className="text-xs text-muted-foreground line-clamp-2 mt-1">{item.summary}</div>

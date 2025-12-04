@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { History, BookText, ChevronRight, User, Settings, ChevronsUpDown, Check } from 'lucide-react';
+import { History, ChevronRight, User, ChevronsUpDown, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import {
   Sidebar,
@@ -21,21 +21,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useAppStore } from '@/store/useAppStore';
+import { loginWithPassword } from '@/lib/projectApi';
 
 export function AppSidebar() {
   const { state, setOpen } = useSidebar();
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
-  const { currentUser, setCurrentUser } = useAppStore();
+  const [loginUsername, setLoginUsername] = useState('project_manager');
+  const [loginPassword, setLoginPassword] = useState('manager1');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const { authToken, authUser, setAuthToken, setAuthUser, logout } = useAppStore();
   const isExpanded = state === 'expanded';
 
-  const users = [
-    { name: '王芳', email: 'wangfang@example.com' },
-    { name: '刘洋', email: 'liuyang@example.com' },
-    { name: '陈静', email: 'chenjing@example.com' },
-  ];
-
-  const currentUserInfo = users.find(u => u.name === currentUser) || users[0];
+  const currentUserInfo = authUser ?? { username: '未登录', role: null };
 
   const menuItems = [
     { 
@@ -47,21 +49,29 @@ export function AppSidebar() {
         { label: 'Yesterday', id: 'yesterday' },
         { label: 'Last Week', id: 'lastWeek' }
       ]
-    },
-    { 
-      icon: BookText, 
-      label: '我的笔记', 
-      id: 'notes',
-      subItems: [
-        { label: 'Recent Notes', id: 'recent' },
-        { label: 'All Notes', id: 'all' },
-        { label: 'Favorites', id: 'favorites' }
-      ]
     }
   ];
 
   const handleMouseEnter = () => {
     setOpen(true);
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setLoginLoading(true);
+    try {
+      const res = await loginWithPassword({
+        username: loginUsername,
+        password: loginPassword,
+      });
+      setAuthToken(res.token);
+      setAuthUser({ username: res.username, role: res.role ?? null });
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : '登录失败');
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   const handleMouseLeave = () => {
@@ -208,8 +218,12 @@ export function AppSidebar() {
                       className="overflow-hidden flex-1"
                     >
                       <div className="text-left">
-                        <p className="text-sm font-medium whitespace-nowrap">{currentUserInfo.name}</p>
-                        <p className="text-xs text-muted-foreground whitespace-nowrap">{currentUserInfo.email}</p>
+                        <p className="text-sm font-medium whitespace-nowrap">
+                          {currentUserInfo.username}
+                        </p>
+                        <p className="text-xs text-muted-foreground whitespace-nowrap">
+                          {authToken ? currentUserInfo.role || '已登录' : '点击登录以使用后台服务'}
+                        </p>
                       </div>
                     </motion.div>
                   )}
@@ -219,32 +233,69 @@ export function AppSidebar() {
                 )}
               </motion.button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="end" className="w-56 border-border/80">
-              <DropdownMenuLabel>切换用户</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {users.map((user) => (
-                <DropdownMenuItem
-                  key={user.name}
-                  onClick={() => setCurrentUser(user.name)}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <User className="size-4" />
-                    <div>
-                      <p className="text-sm font-medium">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
-                    </div>
+            <DropdownMenuContent side="top" align="end" className="w-64 border-border/80">
+              {authToken ? (
+                <>
+                  <DropdownMenuLabel>当前用户</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <div className="px-3 py-2 text-sm">
+                    <div className="font-medium">{currentUserInfo.username}</div>
+                    {currentUserInfo.role && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        角色：{currentUserInfo.role}
+                      </div>
+                    )}
                   </div>
-                  {currentUser === user.name && (
-                    <Check className="size-4 text-primary" />
-                  )}
-                </DropdownMenuItem>
-              ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Settings className="size-4 mr-2" />
-                设置
-              </DropdownMenuItem>
+                <DropdownMenuItem
+                    className="text-red-600 focus:text-red-600 cursor-pointer"
+                    onClick={() => logout()}
+                  >
+                    <LogOut className="size-4 mr-2" />
+                    退出登录
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <form onSubmit={handleLogin} className="px-3 py-2 space-y-2">
+                  <DropdownMenuLabel>用户登录</DropdownMenuLabel>
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="用户名"
+                      autoComplete="username"
+                      value={loginUsername}
+                      onChange={e => setLoginUsername(e.target.value)}
+                    />
+                    <Input
+                      type="password"
+                      placeholder="密码"
+                      autoComplete="current-password"
+                      value={loginPassword}
+                      onChange={e => setLoginPassword(e.target.value)}
+                    />
+                  </div>
+                  {loginError && (
+                    <div className="text-xs text-red-600 whitespace-pre-wrap">
+                      {loginError}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="text-[10px] text-muted-foreground">
+                      测试账号：project_manager / manager1
+                    </div>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={loginLoading}
+                    >
+                      {loginLoading ? '登录中...' : '登录'}
+                    </Button>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <div className="text-[10px] text-muted-foreground">
+                    global_manager / manager2 具备 global_admin 权限
+                  </div>
+                </form>
+                  )}
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarFooter>
