@@ -6,20 +6,20 @@ import { motion } from 'framer-motion';
 import { FolderOpen } from 'lucide-react';
 
 export function MyProjects() {
-  const { projects, removeProject, updateProject, currentUser } = useAppStore();
+  const { projects, removeProject, updateProject } = useAppStore();
   const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Filter: only accepted and established projects where projectLead is current user
+  // Filter: only accepted and established projects
   const myProjects = projects.filter(
-    p => (p.status === 'accepted' || p.status === 'established') && p.projectLead === currentUser
+    p => (p.status === 'accepted' || p.status === 'established')
   );
 
   // Sort: established first, then accepted, then by createdAt desc
   const sortedProjects = [...myProjects].sort((a, b) => {
-    const statusPriority = { established: 0, accepted: 1, pending: 2 };
-    const priorityA = statusPriority[a.status];
-    const priorityB = statusPriority[b.status];
+    const statusPriority: Record<string, number> = { established: 0, accepted: 1, pending: 2, pending_acceptance: 2 };
+    const priorityA = statusPriority[a.status] ?? 3;
+    const priorityB = statusPriority[b.status] ?? 3;
     
     if (priorityA !== priorityB) {
       return priorityA - priorityB;
