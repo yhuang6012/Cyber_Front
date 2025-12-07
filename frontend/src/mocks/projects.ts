@@ -73,7 +73,7 @@ export const mockProjects: ProjectItem[] = [
     id: 'proj-3',
     name: '生物医药CDMO平台',
     description: '创新药物研发外包及生产服务',
-    status: 'pending',
+    status: 'received',
     uploader: '陈敏',
     projectContact: '周杰',
     contactInfo: '13700137003 / zhoujie@biocdmo.com',
@@ -107,7 +107,7 @@ export const mockProjects: ProjectItem[] = [
     id: 'proj-4',
     name: '企业级SaaS协同办公平台',
     description: '新一代智能化企业协同与项目管理工具',
-    status: 'pending',
+    status: 'received',
     uploader: '王磊',
     projectContact: '刘畅',
     contactInfo: '13600136004 / liuchang@collabsaas.io',
@@ -172,4 +172,3 @@ export const mockProjects: ProjectItem[] = [
     createdAt: '2024-11-06T11:00:00Z',
   },
 ];
-

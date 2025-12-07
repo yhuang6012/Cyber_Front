@@ -140,15 +140,17 @@ export interface ProjectItem {
   createdAt: string;
   updatedAt?: string;
   // Status
-  status: 'accepted' | 'pending' | 'established' | 'pending_acceptance'; // 已受理 / 未受理 / 已立项 / 待受理
+  status: 'accepted' | 'rejected' | 'initiated' | 'received'; // 已受理 / 不受理 / 已立项 / 待受理
   // Contact & Source
   uploader?: string; // 项目来源（上传人 uploaded_by）
   projectContact?: string; // 项目联系人
   contactInfo?: string; // 联系方式
+  managerNote?: string; // 投资经理笔记
   // Company Info
   companyName?: string;
   companyAddress?: string;
   industry?: string; // 公司领域/所属行业
+  projectSource?: string; // 项目来源/渠道
   // Team & Product
   coreTeam?: CoreTeamMember[]; // 核心团队（数组）
   coreProduct?: string; // 核心产品
@@ -508,6 +510,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...p,
       id,
       createdAt,
+      status: p.status ?? 'pending_acceptance',
     };
     return { projects: [proj, ...state.projects] };
   }),
@@ -698,4 +701,3 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { favorites: [fav, ...state.favorites] };
   }),
 }));
-

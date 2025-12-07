@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogClose,
@@ -141,6 +142,9 @@ export function EnhancedUploadDialog({
       <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col gap-4 overflow-y-auto" showCloseButton={false}>
         <DialogHeader className="relative">
           <DialogTitle>BP 上传与受理</DialogTitle>
+          <DialogDescription className="sr-only">
+            上传BP文件、查看解析与受理进度。
+          </DialogDescription>
           <DialogClose asChild>
             <Button
               variant="ghost"
@@ -294,4 +298,3 @@ export function EnhancedUploadDialog({
     </Dialog>
   );
 }
-

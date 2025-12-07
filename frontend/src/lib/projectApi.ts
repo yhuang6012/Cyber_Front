@@ -1,4 +1,4 @@
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore, ProjectItem } from '@/store/useAppStore';
 
 export type UploadBpDuplicateStrategy = 'skip' | 'overwrite' | 'error';
 
@@ -25,11 +25,27 @@ export interface PdfTaskStatus {
 
 export type ExtractedInfo = any;
 
+type ProjectStatus = 'accepted' | 'rejected' | 'initiated' | 'received';
+
+const normalizeStatus = (status: any): ProjectStatus => {
+  const mapped = String(status || '').toLowerCase();
+  
+  // 直接匹配的状态
+  if (mapped === 'accepted') return 'accepted';
+  if (mapped === 'rejected') return 'rejected';
+  if (mapped === 'initiated') return 'initiated';
+  if (mapped === 'received') return 'received';
+  
+  // 默认返回待受理
+  return 'received';
+};
+
 function getProjectBaseUrl(): string {
   // 允许通过环境变量覆盖，默认使用提供的后端地址
   const base =
     (import.meta as any).env?.VITE_PROJECT_BASE ||
     'http://101.37.163.233:8001';
+  console.log('[projectApi] base url resolved to:', base);
   return String(base).replace(/\/$/, '');
 }
 
@@ -50,6 +66,8 @@ export async function loginWithPassword(params: {
   const path =
     (import.meta as any).env?.VITE_AUTH_LOGIN_PATH || '/api/auth/token';
   const url = `${base}${path}`;
+
+  console.log('[projectApi] login POST', url, { username: params.username, scope: params.scope, client_id: params.client_id });
 
   const resp = await fetch(url, {
     method: 'POST',
@@ -112,6 +130,14 @@ export async function uploadBpFiles(
 
   const url = `${getProjectBaseUrl()}/api/projects/upload_bps`;
 
+  console.log('[projectApi] uploadBpFiles ->', url, {
+    fileCount: files.length,
+    names: files.map(f => f.name),
+    hasToken: !!authToken,
+    doc_type: options?.doc_type ?? 'bp',
+    on_duplicate: options?.on_duplicate,
+  });
+
   const formData = new FormData();
 
   // 后端期望字段名为 files（数组），浏览器会自动按 multipart/form-data 发送
@@ -137,6 +163,7 @@ export async function uploadBpFiles(
   // 207 Multi-Status 也会被视作 ok，这里只在非 2xx 时抛错
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
+    console.error('[projectApi] uploadBpFiles failed', resp.status, resp.statusText, text);
     throw new Error(
       `BP 上传接口调用失败: ${resp.status} ${resp.statusText || ''} ${text}`,
     );
@@ -148,8 +175,10 @@ export async function uploadBpFiles(
     if (!Array.isArray(data)) {
       throw new Error('返回数据格式异常（不是数组）');
     }
+    console.log('[projectApi] uploadBpFiles response', data);
     return data;
   } catch (e) {
+    console.error('[projectApi] uploadBpFiles parse error', e);
     throw new Error(
       e instanceof Error
         ? `解析 BP 上传接口返回失败: ${e.message}`
@@ -164,9 +193,10 @@ export async function uploadBpFiles(
  * 
  * @param projectId - 上传接口返回的 project_id
  */
-export async function getProjectIntakeDraft(projectId: string): Promise<ExtractedInfo> {
+export async function getProjectIntakeDraft(projectId: string, tokenOverride?: string): Promise<ExtractedInfo> {
   const { authToken } = useAppStore.getState();
-  if (!authToken) {
+  const token = tokenOverride ?? authToken;
+  if (!token) {
     throw new Error('请先登录');
   }
 
@@ -176,7 +206,7 @@ export async function getProjectIntakeDraft(projectId: string): Promise<Extracte
     method: 'GET',
     headers: {
       Accept: 'application/json',
-      Authorization: `Bearer ${authToken}`,
+      Authorization: `Bearer ${token}`,
     },
   });
 
@@ -190,6 +220,122 @@ export async function getProjectIntakeDraft(projectId: string): Promise<Extracte
   const data = await resp.json();
   console.log('[getProjectIntakeDraft] 返回结果:', data);
   return data.project;
+}
+
+type MyProjectsResponse = {
+  projects: Array<{
+    id: string | number;
+    project_name: string;
+    company_name?: string;
+    description?: string;
+    status?: string;
+    uploaded_by?: string;
+    created_at?: string;
+    updated_at?: string;
+    [key: string]: any;
+  }>;
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+};
+
+const mapDetailToProjectItem = (detail: any, fallback: ProjectItem): ProjectItem => ({
+  ...fallback,
+  ...detail,
+  id: String(detail?.id ?? fallback.id),
+  name: detail?.project_name ?? detail?.name ?? fallback.name,
+  companyName: detail?.company_name ?? fallback.companyName,
+  companyAddress: detail?.company_address ?? fallback.companyAddress,
+  projectSource: detail?.project_source ?? fallback.projectSource,
+  description: detail?.description ?? fallback.description,
+  status: normalizeStatus(detail?.status ?? fallback.status),
+  uploader: detail?.uploaded_by_username ?? fallback.uploader,
+  projectContact: detail?.project_contact ?? fallback.projectContact,
+  contactInfo: detail?.contact_info ?? fallback.contactInfo,
+  industry: detail?.industry ?? fallback.industry,
+  coreTeam: detail?.core_team ?? fallback.coreTeam,
+  coreProduct: detail?.core_product ?? fallback.coreProduct,
+  coreTechnology: detail?.core_technology ?? fallback.coreTechnology,
+  competitionAnalysis: detail?.competition_analysis ?? fallback.competitionAnalysis,
+  marketSize: detail?.market_size ?? fallback.marketSize,
+  financialStatus: detail?.financial_status ?? fallback.financialStatus,
+  financingHistory: detail?.financing_history ?? fallback.financingHistory,
+  keywords: detail?.keywords ?? fallback.keywords,
+  managerNote: detail?.manager_note ?? fallback.managerNote,
+  sourceFileName: detail?.project_source ?? fallback.sourceFileName,
+  createdAt: detail?.created_at ?? fallback.createdAt,
+  updatedAt: detail?.updated_at ?? fallback.updatedAt,
+});
+
+export async function fetchMyProjectsWithDetails(options?: {
+  page?: number;
+  page_size?: number;
+  status?: string;
+  company_name?: string;
+  token?: string;
+}): Promise<ProjectItem[]> {
+  const { authToken } = useAppStore.getState();
+  const token = options?.token ?? authToken;
+  if (!token) throw new Error('请先登录');
+
+  const params = new URLSearchParams();
+  params.set('page', String(options?.page ?? 1));
+  params.set('page_size', String(options?.page_size ?? 20));
+  if (options?.status) params.set('status', options.status);
+  if (options?.company_name) params.set('company_name', options.company_name);
+
+  const url = `${getProjectBaseUrl()}/api/projects/my?${params.toString()}`;
+  console.log('[projectApi] fetchMyProjectsWithDetails ->', url);
+
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    console.error('[projectApi] fetchMyProjectsWithDetails failed', resp.status, resp.statusText, text);
+    throw new Error(`获取项目列表失败: ${resp.status} ${resp.statusText || ''} ${text}`);
+  }
+
+  const data = (await resp.json()) as MyProjectsResponse;
+  if (!Array.isArray(data.projects)) {
+    throw new Error('项目列表返回格式异常');
+  }
+
+  const mappedList: ProjectItem[] = data.projects.map(p => ({
+    id: String(p.id),
+    name: p.project_name,
+    companyName: p.company_name,
+    companyAddress: (p as any)?.company_address,
+    projectSource: (p as any)?.project_source,
+    description: p.description,
+    status: normalizeStatus(p.status),
+    uploader: p.uploaded_by ?? p.uploaded_by_username,
+    uploaderUsername: p.uploaded_by_username,
+    createdAt: p.created_at ?? new Date().toISOString(),
+    updatedAt: p.updated_at,
+    tags: [],
+  }));
+
+  const detailed = await Promise.all(
+    mappedList.map(async (item) => {
+      try {
+        const detail = await getProjectIntakeDraft(String(item.id), token);
+        return mapDetailToProjectItem(detail, item);
+      } catch (err) {
+        console.error('[projectApi] detail fetch failed for', item.id, err);
+        return item;
+      }
+    })
+  );
+
+  console.log('[projectApi] fetched projects count:', detailed.length);
+  return detailed;
 }
 
 /**

@@ -24,7 +24,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAppStore } from '@/store/useAppStore';
-import { loginWithPassword } from '@/lib/projectApi';
+import { loginWithPassword, fetchMyProjectsWithDetails } from '@/lib/projectApi';
 
 export function AppSidebar() {
   const { state, setOpen } = useSidebar();
@@ -34,7 +34,7 @@ export function AppSidebar() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const { authToken, authUser, setAuthToken, setAuthUser, logout } = useAppStore();
+  const { authToken, authUser, setAuthToken, setAuthUser, setProjects, logout } = useAppStore();
   const isExpanded = state === 'expanded';
 
   const currentUserInfo = authUser ?? { username: '未登录', role: null };
@@ -67,6 +67,12 @@ export function AppSidebar() {
       });
       setAuthToken(res.token);
       setAuthUser({ username: res.username, role: res.role ?? null });
+      try {
+        const projects = await fetchMyProjectsWithDetails({ token: res.token, page_size: 50 });
+        setProjects(projects);
+      } catch (err) {
+        console.error('[AppSidebar] fetch projects after login failed', err);
+      }
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : '登录失败');
     } finally {
@@ -80,9 +86,10 @@ export function AppSidebar() {
 
   return (
     <motion.div
+      id="app-sidebar"
       initial={false}
       animate={{
-        width: isExpanded ? 240 : 60,
+        width: isExpanded ? 240 : 50,
       }}
       transition={{
         duration: 0.3,
@@ -94,7 +101,7 @@ export function AppSidebar() {
     >
       <Sidebar collapsible="none" className="border-r border-border w-full h-screen bg-sidebar">
         <SidebarHeader className="p-2 pt-2">
-          <div className={`flex items-center gap-3 pl-3 h-12`}>
+          <div className={`flex items-center gap-3 pl-1 ml-1 h-12`}>
             <div className="flex aspect-square size-5 items-center justify-center rounded bg-primary text-primary-foreground">
               <span className="font-bold text-xs">C</span>
             </div>
@@ -124,7 +131,7 @@ export function AppSidebar() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)}
-                      className={`w-full flex items-center rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors gap-3 px-2 py-2 border border-transparent bg-transparent cursor-pointer font-medium text-sm`}
+                      className={`w-full flex items-center rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors gap-3 px-1 py-2 border border-transparent bg-transparent cursor-pointer font-medium text-sm`}
                     >
                       <item.icon className="w-5 h-5 flex-shrink-0" />
                       <AnimatePresence>
@@ -203,10 +210,10 @@ export function AppSidebar() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onMouseEnter={(e) => e.stopPropagation()}
-                className={`flex items-center gap-3 pl-3 h-12 w-full rounded-lg hover:bg-accent transition-colors`}
+                className={`flex items-center gap-3 pl-2 h-12 w-full rounded-lg hover:bg-accent transition-colors`}
               >
-                <div className="flex aspect-square size-6 items-center justify-center rounded-full bg-primary text-primary-foreground flex-shrink-0">
-                  <User className="size-4" />
+                <div className="flex aspect-square size-5 items-center justify-center rounded-full bg-primary text-primary-foreground flex-shrink-0">
+                  <User className="size-3" />
                 </div>
                 <AnimatePresence>
                   {isExpanded && (

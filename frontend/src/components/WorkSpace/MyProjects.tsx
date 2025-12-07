@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore, ProjectItem } from '@/store/useAppStore';
 import { ProjectCard } from '@/components/Projects/ProjectCard';
-import { ProjectDetailSheet } from '@/components/Projects/ProjectDetailSheet';
+import { ProjectDetailSheet } from '@/components/Projects/ProjectDetailPanel/ProjectDetailSheet';
 import { motion } from 'framer-motion';
 import { FolderOpen } from 'lucide-react';
 
@@ -12,7 +12,7 @@ export function MyProjects() {
 
   // Filter: only accepted and established projects
   const myProjects = projects.filter(
-    p => (p.status === 'accepted' || p.status === 'established')
+    p => (p.status === 'accepted' || p.status === 'initiated')
   );
 
   // Sort: established first, then accepted, then by createdAt desc

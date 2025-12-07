@@ -1,16 +1,14 @@
-import { CheckCircle2, Clock, Rocket, Hourglass, Building2, User, Phone, Package, Cpu, TrendingUp, DollarSign, Tag, Trash2, Edit } from 'lucide-react';
+import { CheckCircle2, XCircle, Rocket, Hourglass, Building2, User, Phone, Package, Cpu, TrendingUp, DollarSign, Tag, Trash2 } from 'lucide-react';
 import { ProjectItem } from '@/store/useAppStore';
 
 interface ProjectCardProps {
   project: ProjectItem;
-  variant: 'detailed' | 'compact';
+  variant?: 'detailed' | 'compact';
   onDelete: (id: string) => void;
   onClick: (project: ProjectItem) => void;
 }
 
-export function ProjectCard({ project, variant: propVariant, onDelete, onClick }: ProjectCardProps) {
-  // Override variant: established and accepted projects always use detailed view
-  const variant = (project.status === 'established' || project.status === 'accepted') ? 'detailed' : propVariant;
+export function ProjectCard({ project, variant = 'compact', onDelete, onClick }: ProjectCardProps) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete(project.id);
@@ -37,14 +35,14 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
 
   const getStatusBadge = () => {
     switch (project.status) {
-      case 'pending':
+      case 'rejected':
         return (
-          <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
-            <Clock className="size-3" />
-            未受理
+          <div className="flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-950/30 dark:text-red-400 px-2 py-0.5 rounded-full flex-shrink-0">
+            <XCircle className="size-3" />
+            不受理
           </div>
         );
-      case 'pending_acceptance':
+      case 'received':
         return (
           <div className="flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-400 px-2 py-0.5 rounded-full flex-shrink-0">
             <Hourglass className="size-3" />
@@ -58,7 +56,7 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
             已受理
           </div>
         );
-      case 'established':
+      case 'initiated':
         return (
           <div className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-400 px-2 py-1 rounded-full">
             <Rocket className="size-3" />
@@ -74,7 +72,7 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
         draggable
         onDragStart={handleDragStart}
         onClick={() => onClick(project)}
-        className="border border-border rounded-lg p-4 bg-card hover:shadow-md hover:border-primary/50 transition-all cursor-pointer hover:cursor-grab active:cursor-grabbing"
+        className="border border-border rounded-lg p-4 bg-card hover:shadow-md hover:border-primary/50 transition-all cursor-pointer hover:cursor-grab active:cursor-grabbing group"
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -112,19 +110,18 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
             >
               <Trash2 className="size-4" />
             </button>
-            <Edit className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
       </div>
     );
   }
 
-  // Detailed variant for accepted/established projects
+  // Detailed variant for accepted/initiated projects
   const getBorderClass = () => {
     switch (project.status) {
       case 'accepted':
         return 'border-green-500/50 ring-1 ring-green-500/20 hover:ring-green-500/30';
-      case 'established':
+      case 'initiated':
         return 'border-blue-500/50 ring-1 ring-blue-500/20 hover:ring-blue-500/30';
       default:
         return 'border-border';
@@ -157,7 +154,6 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
           >
             <Trash2 className="size-4" />
           </button>
-          <Edit className="size-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
 
@@ -249,10 +245,17 @@ export function ProjectCard({ project, variant: propVariant, onDelete, onClick }
       )}
 
       <div className="mt-3 pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
-        <span>{project.uploader ? `上传人：${project.uploader}` : '来源：—'}</span>
+        <div className="flex items-center gap-3">
+          {project.uploader && <span>上传人：{project.uploader}</span>}
+          {project.projectSource && (
+            <>
+              {project.uploader && <span className="text-muted-foreground/50">|</span>}
+              <span>来源：{project.projectSource}</span>
+            </>
+          )}
+        </div>
         <span>{new Date(project.createdAt).toLocaleDateString()}</span>
       </div>
     </div>
   );
 }
-

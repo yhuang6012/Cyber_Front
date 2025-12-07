@@ -137,7 +137,10 @@ export function Header() {
 
   return (
     <>
-      <div className="flex-shrink-0 h-16 bg-background border-border px-6 flex items-center justify-between">
+      <div
+        id="app-header-bar"
+        className="flex-shrink-0 h-16 bg-background border-border px-6 flex items-center justify-between"
+      >
         <div className="flex items-center gap-4">
            {/* Focus Desk Button */}
            <Button 
