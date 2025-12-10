@@ -44,7 +44,7 @@ function getProjectBaseUrl(): string {
   // 允许通过环境变量覆盖，默认使用提供的后端地址
   const base =
     (import.meta as any).env?.VITE_PROJECT_BASE ||
-    'http://101.37.163.233:8001';
+    'https://www.gravaity-cybernaut.top';
   console.log('[projectApi] base url resolved to:', base);
   return String(base).replace(/\/$/, '');
 }
