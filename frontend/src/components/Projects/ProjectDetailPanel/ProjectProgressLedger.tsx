@@ -1,13 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { ProjectItem, useAppStore } from '@/store/useAppStore';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { CheckCircle2, Circle, ArrowRight, FileText, FolderPlus, Download, Trash2, FileCheck, Edit, MessageSquare } from 'lucide-react';
+import { CheckCircle2, Circle, FileText, FolderPlus, Download, Trash2, FileCheck, Edit, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { getStatusDisplay } from './projectDetailUtils';
 
 interface ProjectProgressLedgerProps {
   project: ProjectItem;
@@ -83,9 +81,9 @@ function getProjectEvents(project: ProjectItem, stageId: string): ProjectEvent[]
     });
   }
 
-  // 投资经理添加笔记 - 如果有 managerNote
+  // 投资经理添加笔记 - 如果有 description
   if ((stageId === 'accepted' || stageId === 'rejected' || stageId === 'initiated') && 
-      project.managerNote) {
+      project.description) {
     events.push({
       id: 'note_added',
       name: '投资经理添加笔记',
@@ -149,49 +147,6 @@ function getProgressStages(project: ProjectItem): ProgressStage[] {
   }
 
   return stages;
-}
-
-// 获取阶段状态的颜色样式
-function getStageColorClasses(stage: ProgressStage, isActive: boolean = false): string {
-  const statusDisplay = getStatusDisplay(stage.id);
-  
-  if (!statusDisplay) {
-    if (stage.status === 'completed') {
-      return isActive 
-        ? 'bg-emerald-200 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
-        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-    } else if (stage.status === 'active') {
-      return isActive
-        ? 'bg-amber-200 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
-        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/80 dark:text-amber-400';
-    } else {
-      return isActive
-        ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-        : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
-    }
-  }
-  
-  // 根据状态类型返回对应的颜色，激活时更深
-  switch (stage.id) {
-    case 'received':
-      return isActive
-        ? 'bg-amber-200 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
-        : statusDisplay.color;
-    case 'rejected':
-      return isActive
-        ? 'bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300'
-        : statusDisplay.color;
-    case 'accepted':
-      return isActive
-        ? 'bg-emerald-200 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
-        : statusDisplay.color;
-    case 'initiated':
-      return isActive
-        ? 'bg-blue-200 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
-        : statusDisplay.color;
-    default:
-      return statusDisplay.color;
-  }
 }
 
 // 获取任务状态的颜色样式
@@ -269,93 +224,164 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  // 根据项目状态确定每个步骤的状态
+  const getStepStatus = (stepIndex: number) => {
+    const status = project.status;
+    
+    if (status === 'rejected') {
+      // 不受理：待受理完成，受理显示"不受理"（红色），立项未到达
+      return {
+        0: 'completed', // 待受理
+        1: 'rejected',   // 不受理（特殊状态）
+        2: 'pending'     // 立项
+      }[stepIndex] || 'pending';
+    }
+    
+    // 正常流程
+    switch (status) {
+      case 'received':
+        return stepIndex === 0 ? 'active' : 'pending';
+      case 'accepted':
+        return stepIndex <= 1 ? 'completed' : 'pending';
+      case 'initiated':
+        return 'completed';
+      default:
+        return 'pending';
+    }
+  };
+
+  const steps = [
+    { id: 'received', label: '待受理' },
+    { id: 'accepted', label: '受理' },
+    { id: 'initiated', label: '立项' }
+  ];
+
+  // 如果是不受理，第二个步骤显示"不受理"
+  const getStepLabel = (stepIndex: number) => {
+    if (project.status === 'rejected' && stepIndex === 1) {
+      return '不受理';
+    }
+    return steps[stepIndex].label;
+  };
+
+  const getStepColor = (stepIndex: number) => {
+    const stepStatus = getStepStatus(stepIndex);
+    const stepId = steps[stepIndex].id;
+    
+    // 不受理状态：红色
+    if (stepStatus === 'rejected') {
+      return 'bg-red-200 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+    }
+    
+    // 未激活状态：灰色
+    if (stepStatus === 'pending') {
+      return 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400';
+    }
+    
+    // 激活或完成状态：根据步骤 ID 使用对应的颜色
+    // 使用更深的颜色版本以在进度条上更明显
+    switch (stepId) {
+      case 'received':
+        // 待受理：琥珀色
+        return 'bg-amber-200 text-amber-700 dark:bg-amber-900/80 dark:text-amber-400';
+      case 'accepted':
+        // 已受理：绿色
+        return 'bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+      case 'initiated':
+        // 已立项：蓝色
+        return 'bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+      default:
+        return 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400';
+    }
+  };
+
+  const handleStepClick = (stepIndex: number) => {
+    const stepId = steps[stepIndex].id;
+    const stage = progressStages.find(s => s.id === stepId);
+    if (stage) {
+      setActiveStage(stage.id);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Progress Bar with Tabs */}
-      <div className="px-8 py-6 border-b border-border/50 bg-muted/20 flex-shrink-0">
-        <Tabs value={activeStage} onValueChange={setActiveStage} className="w-full">
-          <TabsList className="w-full justify-start bg-transparent h-auto p-0 mb-4">
-            <div className="flex items-center gap-0 overflow-x-auto w-full">
-              {progressStages.map((stage, index) => {
-                const statusDisplay = getStatusDisplay(stage.id);
-                const baseColors = getStageColorClasses(stage, false);
-                
-                // 为激活状态创建样式类（更深的颜色）
-                const getActiveStateClasses = () => {
-                  switch (stage.id) {
-                    case 'received':
-                      return 'data-[state=active]:bg-amber-200 data-[state=active]:text-amber-800 data-[state=active]:dark:bg-amber-900 data-[state=active]:dark:text-amber-300';
-                    case 'rejected':
-                      return 'data-[state=active]:bg-red-200 data-[state=active]:text-red-800 data-[state=active]:dark:bg-red-900/60 data-[state=active]:dark:text-red-300';
-                    case 'accepted':
-                      return 'data-[state=active]:bg-emerald-200 data-[state=active]:text-emerald-800 data-[state=active]:dark:bg-emerald-900/50 data-[state=active]:dark:text-emerald-300';
-                    case 'initiated':
-                      return 'data-[state=active]:bg-blue-200 data-[state=active]:text-blue-800 data-[state=active]:dark:bg-blue-900/50 data-[state=active]:dark:text-blue-300';
-                    default:
-                      return '';
-                  }
-                };
-                
-                return (
-                  <div key={stage.id} className="flex items-center flex-shrink-0">
-                    <TabsTrigger
-                      value={stage.id}
+      {/* Chevron Progress Bar */}
+      <div className="px-8 py-3 border-b border-border/50 bg-muted/20 flex-shrink-0">
+        <div className="flex items-center w-full">
+          <div className="flex items-center flex-1">
+            {steps.map((step, index) => {
+              const stepStatus = getStepStatus(index);
+              const isCompleted = stepStatus === 'completed' || stepStatus === 'active';
+              const isRejected = stepStatus === 'rejected';
+              
+              return (
+                <div key={step.id} className="flex items-center flex-1">
+                  {/* Chevron Segment */}
+                  <div
+                    onClick={() => handleStepClick(index)}
+                    className={cn(
+                      "relative flex items-center justify-center py-2 cursor-pointer transition-all w-full",
+                      getStepColor(index),
+                      "hover:opacity-90",
+                      // 第一个：左圆角
+                      index === 0 && "rounded-l-lg",
+                      // 最后一个：右圆角
+                      index === steps.length - 1 && "rounded-r-lg",
+                      // Chevron 形状
+                      index < steps.length - 1 && "mr-[-1px]",
+                      index > 0 && "ml-[-1px]"
+                    )}
+                    style={{
+                      clipPath: index === 0 
+                        ? 'polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%)'
+                        : index === steps.length - 1
+                        ? 'polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 50%)'
+                        : 'polygon(20px 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 20px 100%, 0 50%)'
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5 z-10">
+                      {isCompleted && !isRejected && (
+                        <CheckCircle2 className="size-4" />
+                      )}
+                      <span className="font-medium text-xs whitespace-nowrap">
+                        {getStepLabel(index)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Stage Events - 显示当前选中阶段的事件 */}
+        <div className="w-full mt-3 pt-2">
+          {activeStageData && (
+            activeStageData.events.length === 0 ? (
+              <p className="text-sm text-muted-foreground">该阶段暂无事件</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {activeStageData.events.map((event) => {
+                  const Icon = event.icon || Circle;
+                  return (
+                    <div
+                      key={event.id}
                       className={cn(
-                        "flex items-center gap-2 px-6 py-3 rounded-lg transition-all border-0 min-w-[140px] justify-center",
-                        // 基础颜色（非激活状态）
-                        baseColors,
-                        // 激活状态：使用更深的颜色，覆盖默认白色背景
-                        getActiveStateClasses(),
-                        // 确保激活状态不使用默认的白色背景
-                        "data-[state=active]:shadow-none",
-                        "data-[state=inactive]:opacity-70"
+                        "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors",
+                        getTaskColorClasses(event.status)
                       )}
                     >
-                      {statusDisplay?.icon || (stage.status === 'completed' ? <CheckCircle2 className="size-4" /> : <Circle className="size-4" />)}
-                      <span className="font-medium whitespace-nowrap">{stage.name}</span>
-                    </TabsTrigger>
-                    {index < progressStages.length - 1 && (
-                      <div className="flex items-center px-4">
-                        <div className="flex-1 h-0.5 bg-border/50 mx-2" />
-                        <ArrowRight className="size-5 text-muted-foreground flex-shrink-0" />
-                        <div className="flex-1 h-0.5 bg-border/50 mx-2" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </TabsList>
-
-          {/* Stage Events */}
-          {activeStageData && (
-            <TabsContent value={activeStageData.id} className="mt-4 m-0">
-              {activeStageData.events.length === 0 ? (
-                <p className="text-sm text-muted-foreground">该阶段暂无事件</p>
-              ) : (
-                <div className="flex flex-wrap gap-3">
-                  {activeStageData.events.map((event) => {
-                    const Icon = event.icon || Circle;
-                    return (
-                      <div
-                        key={event.id}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors",
-                          getTaskColorClasses(event.status)
-                        )}
-                      >
-                        {event.status === 'completed' && <CheckCircle2 className="size-4" />}
-                        {event.status === 'active' && <Icon className="size-4" />}
-                        {event.status === 'pending' && <Circle className="size-4" />}
-                        <span>{event.name}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
+                      {event.status === 'completed' && <CheckCircle2 className="size-4" />}
+                      {event.status === 'active' && <Icon className="size-4" />}
+                      {event.status === 'pending' && <Circle className="size-4" />}
+                      <span>{event.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           )}
-        </Tabs>
+        </div>
       </div>
 
       {/* File List */}

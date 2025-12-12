@@ -3,7 +3,7 @@ import { WorkspacePanel } from '@/components/WorkSpace/WorkspacePanel';
 import { ChatPanel } from '@/components/ChatPanel/ChatPanel';
 import { ProjectsPanel } from '@/components/Projects/ProjectsPanel';
 import { KnowledgeBasePanel } from '@/components/KnowledgeBase/KnowledgeBasePanel';
-import { Header } from '@/components/Header';
+import { ProjectDetailPage } from '@/components/Projects/ProjectDetailPanel/ProjectDetailPage';
 import { useAppStore } from '@/store/useAppStore';
 import { motion } from 'framer-motion';
 import { ChatInput } from '@/components/ChatPanel/ChatInput';
@@ -11,9 +11,16 @@ import { SmartCanvas } from '@/components/SmartCanvas';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 export function HomePage() {
-  const { isChatExpanded, activePanel, smartCanvasOpen } = useAppStore();
+  const { isChatExpanded, activePanel, smartCanvasOpen, selectedProjectId, projects, updateProject } = useAppStore();
+
+  const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) : null;
 
   const renderActivePanel = () => {
+    // If a project is selected, show the detail page
+    if (activePanel === 'projects' && selectedProject) {
+      return <ProjectDetailPage project={selectedProject} onSave={updateProject.bind(null, selectedProject.id)} />;
+    }
+
     switch (activePanel) {
       case 'news':
         return <NewsPanel />;
@@ -28,9 +35,6 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Global Header */}
-      <Header />
-      
       {/* Main Content Panels */}
       <div className="flex flex-1 min-h-0">
         {/* When chat is collapsed, keep original layout (no resizable needed) */}

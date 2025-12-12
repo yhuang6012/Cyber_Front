@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,9 +26,30 @@ export function ProjectsPanelHeader({
   onFileSelect,
 }: ProjectsPanelHeaderProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [searchReadonly, setSearchReadonly] = useState(true);
 
   return (
     <div className="px-6 py-3 space-y-3">
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <Input
+          type="search"
+          name="projects-panel-search"
+          value={searchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={viewMode === 'cards' ? '搜索项目名称、公司、行业、关键词...' : '搜索文件名...'}
+          className="pl-9 h-9"
+          autoComplete="off"
+          data-1p-ignore="true"
+          data-lpignore="true"
+          data-form-type="search"
+          readOnly={searchReadonly}
+          onFocus={() => setSearchReadonly(false)}
+          onBlur={() => setSearchReadonly(true)}
+        />
+      </div>
+
       <div className="flex items-center justify-between">
         <TabsList>
           <Tooltip>
@@ -90,17 +111,6 @@ export function ProjectsPanelHeader({
             )}
           </Button>
         </div>
-      </div>
-      
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={viewMode === 'cards' ? '搜索项目名称、公司、行业、关键词...' : '搜索文件名...'}
-          className="pl-9 h-9"
-        />
       </div>
     </div>
   );

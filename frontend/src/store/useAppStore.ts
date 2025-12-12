@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { mockKnowledgeReports, mockFolders, mockFiles, mockProjects, mockPersons } from '@/mocks';
+import { mockKnowledgeReports, mockPersons } from '@/mocks';
 
 export interface NewsItem {
   id: string;
@@ -145,7 +145,6 @@ export interface ProjectItem {
   uploader?: string; // 项目来源（上传人 uploaded_by）
   projectContact?: string; // 项目联系人
   contactInfo?: string; // 联系方式
-  managerNote?: string; // 投资经理笔记
   // Company Info
   companyName?: string;
   companyAddress?: string;
@@ -264,6 +263,9 @@ interface AppState {
   // Panel state
   activePanel: 'news' | 'workspace' | 'projects' | 'knowledge';
   setActivePanel: (panel: 'news' | 'workspace' | 'projects' | 'knowledge') => void;
+  // Project detail tab state
+  projectDetailTab: 'details' | 'progress';
+  setProjectDetailTab: (tab: 'details' | 'progress') => void;
 
   // Knowledge Base
   knowledgeReports: KnowledgeReport[];
@@ -273,6 +275,8 @@ interface AppState {
 
   // Projects
   projects: ProjectItem[];
+  selectedProjectId: string | null;
+  setSelectedProjectId: (id: string | null) => void;
   addProject: (p: Omit<ProjectItem, 'id' | 'createdAt'> & Partial<Pick<ProjectItem, 'id' | 'createdAt'>>) => void;
   removeProject: (id: string) => void;
   updateProject: (id: string, updates: Partial<ProjectItem>) => void;
@@ -469,9 +473,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   isChatExpanded: false,
   toggleChat: () => set(state => ({ isChatExpanded: !state.isChatExpanded })),
   setChatExpanded: (expanded: boolean) => set({ isChatExpanded: expanded }),
+  // Project detail tab state
+  projectDetailTab: 'details',
+  setProjectDetailTab: (tab: 'details' | 'progress') => set({ projectDetailTab: tab }),
   
   // Panel state
-  activePanel: 'workspace',
+  activePanel: 'projects',
   setActivePanel: (panel: 'news' | 'workspace' | 'projects' | 'knowledge') => set({ activePanel: panel }),
 
   // Knowledge Base
@@ -498,11 +505,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   // Projects
-  projects: mockProjects,
-  uploadedFiles: mockFiles,
+  projects: [],
+  selectedProjectId: null,
+  setSelectedProjectId: (id: string | null) => set({ selectedProjectId: id }),
+  uploadedFiles: [],
   
   // File Folders
-  folders: mockFolders,
+  folders: [],
   addProject: (p) => set(state => {
     const id = p.id ?? crypto.randomUUID();
     const createdAt = p.createdAt ?? new Date().toISOString();

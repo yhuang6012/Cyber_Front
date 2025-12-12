@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Tabs } from '@/components/ui/tabs';
 import { useAppStore, ProjectItem } from '@/store/useAppStore';
-import { ProjectDetailSheet } from './ProjectDetailPanel/ProjectDetailSheet';
 import { EnhancedUploadDialog } from './CreateProject';
 import { ProjectsPanelHeader } from './ProjectsPanelHeader';
 import { ProjectsPanelContent } from './ProjectsPanelContent';
@@ -12,15 +11,13 @@ import { filterProjects, sortProjects } from './utils/projectFilters';
 export function ProjectsPanel() {
   const { 
     projects, 
-    removeProject, 
-    updateProject,
+    removeProject,
     uploadTasks,
     hasActiveUploads,
+    setSelectedProjectId,
   } = useAppStore();
   
   const [viewMode, setViewMode] = useState<'cards' | 'files'>('cards');
-  const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
@@ -51,12 +48,7 @@ export function ProjectsPanel() {
   };
 
   const handleCardClick = (project: ProjectItem) => {
-    setSelectedProject(project);
-    setSheetOpen(true);
-  };
-
-  const handleSaveProject = (updated: ProjectItem) => {
-    updateProject(updated.id, updated);
+    setSelectedProjectId(project.id);
   };
 
   // Filter and sort projects
@@ -91,13 +83,6 @@ export function ProjectsPanel() {
         onDrop={handleDrop}
         onCardClick={handleCardClick}
         onDelete={removeProject}
-      />
-
-      <ProjectDetailSheet
-        project={selectedProject}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        onSave={handleSaveProject}
       />
 
       <EnhancedUploadDialog

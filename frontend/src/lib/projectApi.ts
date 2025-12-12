@@ -240,7 +240,7 @@ type MyProjectsResponse = {
   total_pages: number;
 };
 
-const mapDetailToProjectItem = (detail: any, fallback: ProjectItem): ProjectItem => ({
+export const mapDetailToProjectItem = (detail: any, fallback: ProjectItem): ProjectItem => ({
   ...fallback,
   ...detail,
   id: String(detail?.id ?? fallback.id),
@@ -262,7 +262,6 @@ const mapDetailToProjectItem = (detail: any, fallback: ProjectItem): ProjectItem
   financialStatus: detail?.financial_status ?? fallback.financialStatus,
   financingHistory: detail?.financing_history ?? fallback.financingHistory,
   keywords: detail?.keywords ?? fallback.keywords,
-  managerNote: detail?.manager_note ?? fallback.managerNote,
   sourceFileName: detail?.project_source ?? fallback.sourceFileName,
   createdAt: detail?.created_at ?? fallback.createdAt,
   updatedAt: detail?.updated_at ?? fallback.updatedAt,
@@ -336,6 +335,162 @@ export async function fetchMyProjectsWithDetails(options?: {
 
   console.log('[projectApi] fetched projects count:', detailed.length);
   return detailed;
+}
+
+/**
+ * 立项项目
+ * POST /api/projects/{project_id}/initiate
+ * 
+ * 前置条件：项目状态必须为 accepted
+ * 将项目状态从 accepted 变更为 initiated (尽调中)
+ * 
+ * @param projectId - 项目ID
+ */
+export async function initiateProject(
+  projectId: string,
+  tokenOverride?: string,
+): Promise<ProjectItem> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  const url = `${getProjectBaseUrl()}/api/projects/${projectId}/initiate`;
+
+  console.log('[projectApi] initiateProject ->', url);
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    console.error('[projectApi] initiateProject failed', resp.status, resp.statusText, text);
+    throw new Error(
+      `立项失败: ${resp.status} ${resp.statusText || ''} ${text}`,
+    );
+  }
+
+  const data = await resp.json();
+  console.log('[projectApi] initiateProject response', data);
+
+  // 立项接口返回的数据可能不包含完整项目详情，需要重新获取
+  // 先获取完整的项目详情
+  const fullProjectDetail = await getProjectIntakeDraft(projectId, token);
+  
+  // 将后端返回的数据映射回 ProjectItem
+  return mapDetailToProjectItem(fullProjectDetail, {
+    id: projectId,
+    name: '',
+    status: 'initiated',
+    createdAt: new Date().toISOString(),
+  } as ProjectItem);
+}
+
+/**
+ * 更新项目字段和状态
+ * PATCH /api/projects/{project_id}
+ * 
+ * @param projectId - 项目ID
+ * @param updates - 要更新的字段
+ * @param options - 状态变更选项
+ *   - accept: true 表示受理项目（状态变为 accepted）
+ *   - reject: true 表示不受理项目（状态变为 rejected），需要提供 description 作为拒绝理由
+ */
+export async function updateProject(
+  projectId: string,
+  updates: Partial<ProjectItem> & {
+    accept?: boolean;
+    reject?: boolean;
+  },
+  tokenOverride?: string,
+): Promise<ProjectItem> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  const url = `${getProjectBaseUrl()}/api/projects/${projectId}`;
+
+  // 构建请求体，将 ProjectItem 字段映射到后端字段
+  const payload: any = {};
+
+  // 状态变更参数
+  if (updates.accept === true) {
+    payload.accept = true;
+  }
+  if (updates.reject === true) {
+    payload.reject = true;
+    // 拒绝时必须提供 description 字段作为拒绝理由
+    if (updates.description) {
+      payload.description = updates.description;
+    } else {
+      // 如果没有提供拒绝理由，抛出错误（应该在对话框层面验证）
+      throw new Error('拒绝受理时必须提供拒绝理由');
+    }
+  }
+
+  // 项目字段更新（拒绝时 description 已在上面处理，这里跳过）
+  if (updates.name) payload.project_name = updates.name;
+  if (updates.companyName) payload.company_name = updates.companyName;
+  if (updates.companyAddress) payload.company_address = updates.companyAddress;
+  if (updates.projectSource) payload.project_source = updates.projectSource;
+  // 只有在非拒绝状态下才更新 description（拒绝时 description 已作为拒绝理由处理）
+  if (updates.description && !updates.reject) {
+    payload.description = updates.description;
+  }
+  if (updates.uploader) payload.uploaded_by = updates.uploader;
+  if (updates.projectContact) payload.project_contact = updates.projectContact;
+  if (updates.contactInfo) payload.contact_info = updates.contactInfo;
+  if (updates.industry) payload.industry = updates.industry;
+  if (updates.coreTeam) payload.core_team = updates.coreTeam;
+  if (updates.coreProduct) payload.core_product = updates.coreProduct;
+  if (updates.coreTechnology) payload.core_technology = updates.coreTechnology;
+  if (updates.competitionAnalysis) payload.competition_analysis = updates.competitionAnalysis;
+  if (updates.marketSize) payload.market_size = updates.marketSize;
+  if (updates.financialStatus) payload.financial_status = updates.financialStatus;
+  if (updates.financingHistory) payload.financing_history = updates.financingHistory;
+  if (updates.keywords) payload.keywords = Array.isArray(updates.keywords) ? updates.keywords : updates.keywords;
+
+
+  console.log('[projectApi] updateProject ->', url, payload);
+
+  const resp = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    console.error('[projectApi] updateProject failed', resp.status, resp.statusText, text);
+    throw new Error(
+      `更新项目失败: ${resp.status} ${resp.statusText || ''} ${text}`,
+    );
+  }
+
+  const data = await resp.json();
+  console.log('[projectApi] updateProject response', data);
+
+  // 将后端返回的数据映射回 ProjectItem
+  const project = data.project || data;
+  return mapDetailToProjectItem(project, {
+    id: projectId,
+    name: '',
+    status: 'received',
+    createdAt: new Date().toISOString(),
+  } as ProjectItem);
 }
 
 /**

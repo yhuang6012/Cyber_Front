@@ -1,14 +1,10 @@
-import { useState } from 'react';
 import { useAppStore, ProjectItem } from '@/store/useAppStore';
 import { ProjectCard } from '@/components/Projects/ProjectCard';
-import { ProjectDetailSheet } from '@/components/Projects/ProjectDetailPanel/ProjectDetailSheet';
 import { motion } from 'framer-motion';
 import { FolderOpen } from 'lucide-react';
 
 export function MyProjects() {
-  const { projects, removeProject, updateProject } = useAppStore();
-  const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const { projects, removeProject, setSelectedProjectId, setActivePanel } = useAppStore();
 
   // Filter: only accepted and established projects
   const myProjects = projects.filter(
@@ -28,12 +24,8 @@ export function MyProjects() {
   });
 
   const handleCardClick = (project: ProjectItem) => {
-    setSelectedProject(project);
-    setSheetOpen(true);
-  };
-
-  const handleSaveProject = (updated: ProjectItem) => {
-    updateProject(updated.id, updated);
+    setSelectedProjectId(project.id);
+    setActivePanel('projects'); // Switch to projects panel to show the detail
   };
 
   return (
@@ -63,13 +55,6 @@ export function MyProjects() {
           ))}
         </div>
       )}
-
-      <ProjectDetailSheet
-        project={selectedProject}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        onSave={handleSaveProject}
-      />
     </div>
   );
 }

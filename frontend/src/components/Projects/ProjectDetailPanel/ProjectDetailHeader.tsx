@@ -1,7 +1,6 @@
 import { ProjectItem } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Pencil, X, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,6 +18,7 @@ interface ProjectDetailHeaderProps {
   onStartAcceptance: () => void;
   onMarkEstablished: () => void;
   onClose: () => void;
+  activeTab: 'details' | 'progress';
 }
 
 export function ProjectDetailHeader({
@@ -32,10 +32,10 @@ export function ProjectDetailHeader({
   onMarkNotAccepted,
   onStartAcceptance,
   onMarkEstablished,
-  onClose,
+  activeTab,
 }: ProjectDetailHeaderProps) {
   return (
-    <div className="px-8 py-6 border-b border-border/50 bg-gradient-to-r from-background via-background to-muted/20">
+    <div className="px-8 pb-6 pt-2 border-b border-border/50 bg-gradient-to-r from-background via-background to-muted/20">
       <div className="space-y-4">
         {/* First Row: Project Name, Status Badge (view mode), and Edit Button */}
         <div className="flex items-center justify-between gap-4">
@@ -99,74 +99,60 @@ export function ProjectDetailHeader({
                   exit={{ opacity: 0, scale: 0.9 }}
                   className="flex items-center gap-2"
                 >
-                  {editedProject.status === 'received' && (
-                    <>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={onMarkNotAccepted}
-                        className="cursor-pointer"
-                      >
-                        不受理
-                      </Button>
-                      <Button 
-                        variant="default" 
-                        size="sm" 
-                        onClick={onStartAcceptance}
-                        className="cursor-pointer"
-                      >
-                        受理
-                      </Button>
-                    </>
-                  )}
-                  {editedProject.status === 'accepted' && (
+                  {/* 详情页：显示编辑按钮 */}
+                  {activeTab === 'details' && (
                     <Button 
-                      variant="default" 
+                      variant="ghost" 
                       size="sm" 
-                      onClick={onMarkEstablished}
+                      onClick={onStartEdit}
                       className="cursor-pointer"
                     >
-                      立项
+                      <Pencil className="size-4 mr-1" />
+                      编辑
                     </Button>
                   )}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={onStartEdit}
-                    className="cursor-pointer"
-                  >
-                    <Pencil className="size-4 mr-1" />
-                    编辑
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={onClose}
-                    className="h-9 w-9 rounded-full cursor-pointer"
-                  >
-                    <X className="size-4" />
-                  </Button>
+                  
+                  {/* 进度台账：显示状态操作按钮 */}
+                  {activeTab === 'progress' && (
+                    <>
+                      {editedProject.status === 'received' && (
+                        <>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={onMarkNotAccepted}
+                            className="cursor-pointer"
+                          >
+                            不受理
+                          </Button>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            onClick={onStartAcceptance}
+                            className="cursor-pointer"
+                          >
+                            受理
+                          </Button>
+                        </>
+                      )}
+                      {editedProject.status === 'accepted' && (
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          onClick={onMarkEstablished}
+                          className="cursor-pointer"
+                        >
+                          立项
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
         </div>
-        
-        {/* Second Row: Description */}
-        {isEditing ? (
-          <Textarea
-            value={editedProject.description || ''}
-            onChange={(e) => onFieldChange('description', e.target.value)}
-            className="min-h-[60px] text-sm border-dashed resize-none"
-            placeholder="项目简介..."
-          />
-        ) : (
-          editedProject.description && (
-            <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
-              {editedProject.description}
-            </p>
-          )
-        )}
       </div>
     </div>
   );

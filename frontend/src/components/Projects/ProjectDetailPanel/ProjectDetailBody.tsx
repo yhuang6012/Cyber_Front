@@ -14,7 +14,9 @@ import {
   Phone,
   MapPin,
   Briefcase,
-  FileText
+  FileText,
+  UserCircle,
+  Link
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -64,32 +66,63 @@ export function ProjectDetailBody({
       <Section icon={FileText} title="投资经理笔记">
         {isEditing ? (
           <Textarea
-            value={editedProject.managerNote || ''}
-            onChange={(e) => onFieldChange('managerNote', e.target.value)}
+            value={editedProject.description || ''}
+            onChange={(e) => onFieldChange('description', e.target.value)}
             className="min-h-[120px] resize-none"
             placeholder="记录受理判断、尽调要点、沟通反馈等..."
           />
         ) : (
           <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
             <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {editedProject.managerNote?.trim() ? editedProject.managerNote : <span className="text-muted-foreground/60 italic">暂无笔记</span>}
+              {editedProject.description?.trim() ? editedProject.description : <span className="text-muted-foreground/60 italic">暂无笔记</span>}
             </p>
           </div>
         )}
       </Section>
 
-      {/* Contact Info */}
-      <Section icon={User} title="联系信息">
+      {/* Project Role */}
+      <Section icon={Briefcase} title="项目角色">
         {isEditing ? (
-          <div className="grid gap-5">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground">投资经理</Label>
               <Input
                 value={editedProject.uploader || ''}
                 onChange={(e) => onFieldChange('uploader', e.target.value)}
-                placeholder="输入上传人..."
+                placeholder="输入投资经理..."
               />
             </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">项目来源</Label>
+              <Input
+                value={editedProject.projectSource || ''}
+                onChange={(e) => onFieldChange('projectSource', e.target.value)}
+                placeholder="输入项目来源..."
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <UserCircle className="size-3" /> 投资经理
+              </span>
+              <p className="text-base ml-1">{editedProject.uploader || <span className="text-muted-foreground/60 italic">暂无</span>}</p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Link className="size-3" /> 项目来源
+              </span>
+              <p className="text-base ml-1">{editedProject.projectSource || <span className="text-muted-foreground/60 italic">暂无</span>}</p>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* Contact Info */}
+      <Section icon={User} title="对接信息">
+        {isEditing ? (
+          <div className="grid gap-5">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">项目联系人</Label>
@@ -110,16 +143,10 @@ export function ProjectDetailBody({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-1">
               <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <FileText className="size-3" /> 投资经理
-              </span>
-              <p className="text-base ml-1">{editedProject.uploader || <span className="text-muted-foreground/60 italic">暂无</span>}</p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <User className="size-3" /> 联系人
+                <User className="size-3" /> 项目联系人
               </span>
               <p className="text-base ml-1">{editedProject.projectContact || <span className="text-muted-foreground/60 italic">暂无</span>}</p>
             </div>
