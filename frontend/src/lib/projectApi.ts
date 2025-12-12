@@ -1,4 +1,4 @@
-import { useAppStore, ProjectItem } from '@/store/useAppStore';
+import { useAppStore, ProjectItem, ProjectFolderContents } from '@/store/useAppStore';
 
 export type UploadBpDuplicateStrategy = 'skip' | 'overwrite' | 'error';
 
@@ -591,4 +591,166 @@ export function openPdfTasksSse(
       controller.abort();
     },
   };
+}
+
+/**
+ * 获取项目文件夹内容
+ * GET /api/projects/{project_id}/folders
+ * @param projectIdOrName - 项目ID或项目名称
+ * @param folderId - 文件夹ID（可选，不提供时返回根目录）
+ */
+export async function getProjectFolders(
+  projectIdOrName: string,
+  folderId?: string,
+  tokenOverride?: string,
+): Promise<ProjectFolderContents> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  let url = `${getProjectBaseUrl()}/api/projects/${encodeURIComponent(projectIdOrName)}/folders`;
+  if (folderId) {
+    url += `?folder_id=${encodeURIComponent(folderId)}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || '获取文件夹内容失败');
+  }
+
+  return response.json();
+}
+
+/**
+ * 删除项目
+ * DELETE /api/projects/{project_id}
+ * @param projectId - 项目ID
+ * @param deletionReason - 删除原因（可选）
+ * @returns 删除成功返回 true
+ * @throws 403 Forbidden - 用户没有 admin 权限
+ * @throws 404 Not Found - 项目不存在
+ */
+export async function deleteProject(
+  projectId: string,
+  deletionReason?: string,
+  tokenOverride?: string,
+): Promise<boolean> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  let url = `${getProjectBaseUrl()}/api/projects/${projectId}`;
+  
+  // 如果有删除原因，添加到 query 参数
+  if (deletionReason) {
+    url += `?deletion_reason=${encodeURIComponent(deletionReason)}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 422) {
+      throw new Error('无删除权限');
+    }
+    const errorText = await response.text();
+    throw new Error(errorText || '删除失败');
+  }
+
+  return true;
+}
+
+/**
+ * 上传项目文件
+ * POST /api/projects/{proj_id}/files
+ * @param projectId - 项目ID
+ * @param files - 要上传的文件列表
+ * @param folderId - 目标文件夹ID（可选，不提供时上传到根目录）
+ * @param onDuplicate - 重复处理策略：'error' | 'overwrite' | 'skip'，默认为 'error'
+ * @returns 单个文件返回文件信息对象，多个文件返回文件信息数组（可能包含错误对象）
+ */
+export async function uploadProjectFiles(
+  projectId: string,
+  files: File[],
+  folderId?: string,
+  onDuplicate: 'error' | 'overwrite' | 'skip' = 'error',
+  tokenOverride?: string,
+): Promise<any> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  if (files.length === 0) {
+    throw new Error('请选择要上传的文件');
+  }
+
+  const url = `${getProjectBaseUrl()}/api/projects/${projectId}/files`;
+  
+  const formData = new FormData();
+  
+  // 添加文件（支持多个）
+  files.forEach(file => {
+    formData.append('files', file);
+  });
+  
+  // 添加可选参数
+  if (folderId) {
+    formData.append('folder_id', folderId);
+  }
+  
+  if (onDuplicate) {
+    formData.append('on_duplicate', onDuplicate);
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      // 不设置 Content-Type，让浏览器自动设置 multipart/form-data 边界
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    if (response.status === 400) {
+      throw new Error('文件验证失败（文件大小超限或格式不支持）');
+    }
+    if (response.status === 404) {
+      throw new Error('项目不存在或文件夹不存在');
+    }
+    if (response.status === 409) {
+      throw new Error('文件已存在');
+    }
+    if (response.status === 500) {
+      throw new Error('上传失败（服务器内部错误）');
+    }
+    const errorText = await response.text();
+    throw new Error(errorText || '上传失败');
+  }
+
+  // 单个文件返回 201，多个文件返回 207
+  if (response.status === 201) {
+    return await response.json();
+  } else if (response.status === 207) {
+    return await response.json(); // 返回数组，可能包含成功和错误对象
+  }
+
+  return await response.json();
 }

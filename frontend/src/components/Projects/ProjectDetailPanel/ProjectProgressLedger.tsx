@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { ProjectItem, useAppStore } from '@/store/useAppStore';
-import { CheckCircle2, Circle, FileText, FolderPlus, Download, Trash2, FileCheck, Edit, MessageSquare } from 'lucide-react';
+import { CheckCircle2, Circle, FileText, FolderPlus, Download, Trash2, FileCheck, Edit, MessageSquare, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { uploadProjectFiles } from '@/lib/projectApi';
 
 interface ProjectProgressLedgerProps {
   project: ProjectItem;
@@ -164,6 +165,7 @@ function getTaskColorClasses(taskStatus: 'completed' | 'active' | 'pending'): st
 export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
   const { uploadedFiles } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 根据项目状态生成进度阶段
@@ -203,16 +205,44 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
     );
   }, [stageFiles, searchQuery]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     
-    // TODO: 实现文件上传逻辑，标记文件所属阶段
-    console.log('Upload files for stage:', activeStage, files);
+    setIsUploading(true);
     
-    // 重置input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    try {
+      // 调用上传 API
+      const result = await uploadProjectFiles(project.id, files);
+      
+      // 处理上传结果
+      if (Array.isArray(result)) {
+        // 多个文件上传（207 Multi-Status）
+        const successCount = result.filter((item: any) => !item.error).length;
+        const errorCount = result.filter((item: any) => item.error).length;
+        
+        if (errorCount > 0) {
+          alert(`上传完成：${successCount} 个文件成功，${errorCount} 个文件失败`);
+        } else {
+          alert(`成功上传 ${successCount} 个文件`);
+        }
+      } else {
+        // 单个文件上传（201）
+        alert('文件上传成功');
+      }
+      
+      // TODO: 重新获取项目文件列表以更新显示
+      // 可以调用 getProjectFolders 或触发父组件刷新
+      
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '上传失败';
+      alert(message);
+    } finally {
+      setIsUploading(false);
+      // 重置input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -413,9 +443,19 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
               size="sm"
               onClick={() => fileInputRef.current?.click()}
               className="gap-2 cursor-pointer"
+              disabled={isUploading}
             >
-              <FolderPlus className="size-4" />
-              子文件上传
+              {isUploading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  上传中...
+                </>
+              ) : (
+                <>
+                  <FolderPlus className="size-4" />
+                  子文件上传
+                </>
+              )}
             </Button>
           </div>
         </div>

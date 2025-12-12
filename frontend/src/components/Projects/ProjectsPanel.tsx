@@ -11,7 +11,7 @@ import { filterProjects, sortProjects } from './utils/projectFilters';
 export function ProjectsPanel() {
   const { 
     projects, 
-    removeProject,
+    removeProject, 
     uploadTasks,
     hasActiveUploads,
     setSelectedProjectId,
@@ -82,7 +82,7 @@ export function ProjectsPanel() {
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onCardClick={handleCardClick}
-        onDelete={removeProject}
+                    onDelete={removeProject}
       />
 
       <EnhancedUploadDialog

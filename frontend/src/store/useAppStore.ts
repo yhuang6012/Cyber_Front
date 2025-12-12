@@ -181,6 +181,41 @@ export interface FileFolder {
   color?: string; // Optional color tag
 }
 
+/**
+ * 项目文件信息
+ */
+export interface ProjectFileItem {
+  id: string;
+  file_name: string;
+  file_size: number;
+  file_type: string;
+  uploaded_by?: string;
+  uploaded_at?: string;
+  bronze_path?: string;
+  transcript_path?: string;
+  derive_from_file_id?: string | null;
+  oss_url?: string;
+  [key: string]: any;
+}
+
+/**
+ * 项目文件夹信息
+ */
+export interface ProjectFolderItem {
+  id: string;
+  name: string;
+  [key: string]: any;
+}
+
+/**
+ * 项目文件夹内容响应
+ */
+export interface ProjectFolderContents {
+  project_name: string;
+  folders: ProjectFolderItem[];
+  files: ProjectFileItem[];
+}
+
 // Upload task for tracking file uploads
 export interface UploadTask {
   id: string;

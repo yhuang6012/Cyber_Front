@@ -1,5 +1,17 @@
+import { useState } from 'react';
 import { CheckCircle2, XCircle, Rocket, Hourglass, Building2, User, Phone, Package, Cpu, TrendingUp, DollarSign, Tag, Trash2 } from 'lucide-react';
 import { ProjectItem } from '@/store/useAppStore';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { deleteProject } from '@/lib/projectApi';
 
 interface ProjectCardProps {
   project: ProjectItem;
@@ -9,9 +21,26 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, variant = 'compact', onDelete, onClick }: ProjectCardProps) {
-  const handleDelete = (e: React.MouseEvent) => {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteProject(project.id);
+      setDeleteDialogOpen(false);
     onDelete(project.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '删除失败';
+      alert(message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleDragStart = (e: React.DragEvent) => {
@@ -103,7 +132,7 @@ export function ProjectCard({ project, variant = 'compact', onDelete, onClick }:
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              onClick={handleDelete}
+              onClick={handleDeleteClick}
               className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 transition-opacity"
               aria-label="删除项目"
               title="删除项目"
@@ -112,6 +141,28 @@ export function ProjectCard({ project, variant = 'compact', onDelete, onClick }:
             </button>
           </div>
         </div>
+
+        {/* 删除确认对话框 */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认删除</AlertDialogTitle>
+              <AlertDialogDescription>
+                确定要删除项目「{project.name}」吗？此操作不可撤销。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="border border-destructive bg-white text-destructive hover:bg-destructive/10"
+              >
+                {isDeleting ? '删除中...' : '删除'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     );
   }
@@ -147,7 +198,7 @@ export function ProjectCard({ project, variant = 'compact', onDelete, onClick }:
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            onClick={handleDelete}
+            onClick={handleDeleteClick}
             className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 transition-opacity"
             aria-label="删除项目"
             title="删除项目"
@@ -256,6 +307,28 @@ export function ProjectCard({ project, variant = 'compact', onDelete, onClick }:
         </div>
         <span>{new Date(project.createdAt).toLocaleDateString()}</span>
       </div>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除项目「{project.name}」吗？此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="border border-destructive bg-white text-destructive hover:bg-destructive/10"
+            >
+              {isDeleting ? '删除中...' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

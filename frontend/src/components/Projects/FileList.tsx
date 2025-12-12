@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { useAppStore, UploadedFileMeta } from '@/store/useAppStore';
+import { useAppStore, ProjectFileItem } from '@/store/useAppStore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { FileText, Folder, FolderPlus, ChevronRight, ChevronDown, MoreVertical, Trash2, FolderInput, FileAudio, FileType } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,25 +9,34 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { FileText, Folder, ChevronRight, ChevronDown, FileAudio, FileType, Loader2, Eye, Trash2, MoreVertical } from 'lucide-react';
+import { getProjectFolders } from '@/lib/projectApi';
 
-function getFileIcon(type: string) {
-  if (type.includes('pdf')) return <FileText className="size-4 text-red-500" />;
-  if (type.includes('spreadsheet') || type.includes('excel')) return <FileText className="size-4 text-green-600" />;
-  if (type.includes('presentation') || type.includes('powerpoint')) return <FileText className="size-4 text-orange-500" />;
-  if (type.includes('word') || type.includes('document')) return <FileText className="size-4 text-blue-600" />;
-  if (type.includes('audio')) return <FileAudio className="size-4 text-purple-600" />;
-  if (type.includes('markdown')) return <FileType className="size-4 text-gray-600" />;
+function getFileIcon(_fileType: string = '', fileName: string = '') {
+  const name = fileName.toLowerCase();
+  
+  if (name.endsWith('.pdf')) return <FileText className="size-4 text-red-500" />;
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) return <FileText className="size-4 text-green-600" />;
+  if (name.endsWith('.pptx') || name.endsWith('.ppt')) return <FileText className="size-4 text-orange-500" />;
+  if (name.endsWith('.docx') || name.endsWith('.doc')) return <FileText className="size-4 text-blue-600" />;
+  if (name.endsWith('.mp3') || name.endsWith('.wav') || name.endsWith('.m4a')) return <FileAudio className="size-4 text-purple-600" />;
+  if (name.endsWith('.md')) return <FileType className="size-4 text-gray-600" />;
   return <FileText className="size-4 text-muted-foreground" />;
 }
 
-function isAudioFile(type: string, name: string) {
-  return type.includes('audio') || name.toLowerCase().endsWith('.mp3') || name.toLowerCase().endsWith('.wav') || name.toLowerCase().endsWith('.m4a');
-}
-
-function formatFileSize(bytes: number): string {
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return '-';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+interface ProjectFilesData {
+  projectId: string;
+  projectName: string;
+  files: ProjectFileItem[];
+  loading: boolean;
+  error?: string;
 }
 
 interface FileListProps {
@@ -37,339 +44,277 @@ interface FileListProps {
 }
 
 export function FileList({ searchQuery = '' }: FileListProps) {
-  const { folders, uploadedFiles, addFolder, removeFolder, moveFileToFolder } = useAppStore();
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(folders.map(f => f.id)));
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
+  const { projects, authToken } = useAppStore();
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [projectFilesMap, setProjectFilesMap] = useState<Record<string, ProjectFilesData>>({});
 
-  const toggleFolder = (folderId: string) => {
+  // 当项目展开时，加载该项目的文件
+  const loadProjectFiles = async (projectId: string) => {
+    if (projectFilesMap[projectId]?.files.length > 0) return; // 已加载过
+    
+    setProjectFilesMap(prev => ({
+      ...prev,
+      [projectId]: { 
+        projectId, 
+        projectName: projects.find(p => p.id === projectId)?.name || '', 
+        files: [], 
+        loading: true 
+      }
+    }));
+
+    try {
+      const result = await getProjectFolders(projectId);
+      // API 返回的是 files 数组
+      const files = result.files || [];
+      setProjectFilesMap(prev => ({
+        ...prev,
+        [projectId]: {
+          projectId,
+          projectName: result.project_name || projects.find(p => p.id === projectId)?.name || '',
+          files,
+          loading: false
+        }
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '加载失败';
+      setProjectFilesMap(prev => ({
+        ...prev,
+        [projectId]: {
+          projectId,
+          projectName: projects.find(p => p.id === projectId)?.name || '',
+          files: [],
+          loading: false,
+          error: message
+        }
+      }));
+    }
+  };
+
+  const toggleFolder = (projectId: string) => {
     setExpandedFolders(prev => {
       const next = new Set(prev);
-      if (next.has(folderId)) {
-        next.delete(folderId);
+      if (next.has(projectId)) {
+        next.delete(projectId);
       } else {
-        next.add(folderId);
+        next.add(projectId);
+        // 展开时加载文件
+        loadProjectFiles(projectId);
       }
       return next;
     });
   };
 
-  const handleCreateFolder = () => {
-    if (newFolderName.trim()) {
-      const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
-      const randomColor = colors[Math.floor(Math.random() * colors.length)];
-      addFolder(newFolderName.trim(), randomColor);
-      setNewFolderName('');
-      setIsCreatingFolder(false);
-    }
-  };
-
-  const handleDeleteFolder = (folderId: string) => {
-    if (confirm('确定要删除此文件夹吗？文件夹内的文件将移至"未分类"。')) {
-      removeFolder(folderId);
-    }
-  };
-
-  const handleMoveFile = (fileId: string, folderId?: string) => {
-    moveFileToFolder(fileId, folderId);
-  };
-
-  const handleTranscribeAudio = (file: UploadedFileMeta) => {
-    // 模拟转文字功能
-    const baseName = file.name.replace(/\.(mp3|wav|m4a)$/i, '');
-    const transcriptFileName = `${baseName}-转录文本.md`;
-    
-    // 检查是否已存在转录文本
-    const existingTranscript = uploadedFiles.find(f => f.name === transcriptFileName);
-    
-    if (existingTranscript) {
-      alert('该音频文件已有转录文本！');
-    } else {
-      alert('开始转录音频文件...\n\n这是一个模拟功能，实际使用时会调用语音识别API进行转录。');
-      // 实际项目中，这里会调用后端API进行音频转文字
-    }
-  };
-
-  const handleDragStart = (e: React.DragEvent, file: UploadedFileMeta) => {
+  const handleDragStart = (e: React.DragEvent, file: ProjectFileItem, projectName: string) => {
     e.stopPropagation();
     const dragData = {
       id: file.id,
       type: 'file',
-      title: file.name,
+      title: file.file_name,
       content: JSON.stringify({
-        name: file.name,
-        size: formatFileSize(file.size),
-        type: file.type,
-        createdAt: file.createdAt,
+        name: file.file_name,
+        size: formatFileSize(file.file_size),
+        type: file.file_type || '',
+        project: projectName,
+        url: file.oss_url,
       }, null, 2),
     };
     e.dataTransfer.setData('application/json', JSON.stringify(dragData));
     e.dataTransfer.effectAllowed = 'copy';
   };
 
-  // Filter files by search query
-  const filteredFiles = uploadedFiles.filter(file => {
+  const handlePreviewFile = (file: ProjectFileItem) => {
+    // TODO: 实现文件预览功能
+    if (file.oss_url) {
+      window.open(file.oss_url, '_blank');
+    } else {
+      alert('文件预览功能开发中...');
+    }
+  };
+
+  const handleDeleteFile = async (file: ProjectFileItem, projectId: string) => {
+    if (!confirm(`确定要删除文件「${file.file_name}」吗？`)) {
+      return;
+    }
+    
+    try {
+      // TODO: 调用删除文件 API
+      // await deleteProjectFile(projectId, file.id);
+      
+      // 临时：从本地状态中移除
+      setProjectFilesMap(prev => {
+        const projectData = prev[projectId];
+        if (!projectData) return prev;
+        return {
+          ...prev,
+          [projectId]: {
+            ...projectData,
+            files: projectData.files.filter(f => f.id !== file.id),
+          },
+        };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '删除失败';
+      alert(message);
+    }
+  };
+
+  // 根据搜索过滤项目
+  const filteredProjects = projects.filter(project => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
-    return file.name.toLowerCase().includes(query);
+    // 搜索项目名或项目内的文件名
+    const matchesProjectName = project.name.toLowerCase().includes(query);
+    const projectFiles = projectFilesMap[project.id]?.files || [];
+    const matchesFileName = projectFiles.some(f => f.file_name.toLowerCase().includes(query));
+    return matchesProjectName || matchesFileName;
   });
 
-  // Group filtered files by folder
-  const filesByFolder: Record<string, UploadedFileMeta[]> = {};
-  const uncategorizedFiles: UploadedFileMeta[] = [];
+  // 获取项目文件（过滤后）
+  const getFilteredFiles = (projectId: string): ProjectFileItem[] => {
+    const files = projectFilesMap[projectId]?.files || [];
+    if (!searchQuery.trim()) return files;
+    const query = searchQuery.toLowerCase();
+    return files.filter(f => f.file_name.toLowerCase().includes(query));
+  };
 
-  filteredFiles.forEach(file => {
-    if (file.folderId) {
-      if (!filesByFolder[file.folderId]) {
-        filesByFolder[file.folderId] = [];
-      }
-      filesByFolder[file.folderId].push(file);
-    } else {
-      uncategorizedFiles.push(file);
-    }
-  });
+  // 未登录或无项目时的提示
+  if (!authToken) {
+    return (
+      <div className="text-center text-muted-foreground text-sm py-8">
+        请先登录以查看项目文件
+      </div>
+    );
+  }
+
+  if (filteredProjects.length === 0) {
+    return (
+      <div className="text-center text-muted-foreground text-sm py-8">
+        {searchQuery ? '没有找到匹配的项目或文件' : '暂无项目'}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {/* Create Folder Section */}
-      <div className="flex items-center gap-2">
-        {isCreatingFolder ? (
-          <>
-            <Input
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="输入文件夹名称..."
-              className="max-w-xs focus-visible:ring-0 focus-visible:ring-offset-0"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleCreateFolder();
-                if (e.key === 'Escape') {
-                  setIsCreatingFolder(false);
-                  setNewFolderName('');
-                }
-              }}
-              autoFocus
-            />
-            <Button size="sm" onClick={handleCreateFolder}>
-              确定
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setIsCreatingFolder(false);
-                setNewFolderName('');
-              }}
+      {/* 项目文件夹列表 */}
+      {filteredProjects.map((project) => {
+        const projectData = projectFilesMap[project.id];
+        const isExpanded = expandedFolders.has(project.id);
+        const files = getFilteredFiles(project.id);
+        const fileCount = projectData?.files.length || 0;
+        
+        return (
+          <div key={project.id} className="rounded-lg bg-card overflow-hidden ">
+            {/* 项目文件夹头部 */}
+            <div 
+              className="flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+              onClick={() => toggleFolder(project.id)}
             >
-              取消
-            </Button>
-          </>
-        ) : (
-          <Button size="sm" variant="secondary" onClick={() => setIsCreatingFolder(true)} className="flex items-center gap-2">
-            <FolderPlus className="size-4" />
-            新建文件夹
-          </Button>
-        )}
-      </div>
-
-      {/* Folders */}
-      {folders.map((folder) => (
-        <div key={folder.id} className="rounded-lg bg-card overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer">
-            <div className="flex items-center gap-2 flex-1" onClick={() => toggleFolder(folder.id)}>
-              {expandedFolders.has(folder.id) ? (
-                <ChevronDown className="size-4" />
-              ) : (
-                <ChevronRight className="size-4" />
-              )}
-              <Folder className="size-4" style={{ color: folder.color }} />
-              <span className="font-medium">{folder.name}</span>
-              <span className="text-xs text-muted-foreground">
-                ({filesByFolder[folder.id]?.length || 0} 个文件)
-              </span>
+              <div className="flex items-center gap-2 flex-1">
+                {isExpanded ? (
+                  <ChevronDown className="size-4" />
+                ) : (
+                  <ChevronRight className="size-4" />
+                )}
+                <Folder className="size-4 text-blue-500" />
+                <span className="font-medium">{project.name}</span>
+                {projectData?.loading ? (
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                ) : projectData && fileCount > 0 ? (
+                  <span className="text-xs text-muted-foreground">
+                    ({fileCount} 个文件)
+                  </span>
+                ) : null}
+              </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <MoreVertical className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleDeleteFolder(folder.id)} className="text-destructive">
-                  <Trash2 className="size-4 mr-2" />
-                  删除文件夹
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+
+            {/* 展开时显示文件列表 */}
+            {isExpanded && (
+              <div>
+                {projectData?.loading ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground">
+                    <Loader2 className="size-5 animate-spin mr-2" />
+                    加载中...
+                  </div>
+                ) : projectData?.error ? (
+                  <div className="text-center text-destructive text-sm py-4">
+                    {projectData.error}
+                  </div>
+                ) : files.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[40px]"></TableHead>
+                        <TableHead>文件名</TableHead>
+                        <TableHead className="w-[120px] text-right">文件大小</TableHead>
+                        <TableHead className="w-[200px] text-right">上传时间</TableHead>
+                        <TableHead className="w-[80px] text-right"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {files.map((file) => (
+                        <TableRow 
+                          key={file.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, file, project.name)}
+                          className="cursor-grab active:cursor-grabbing"
+                        >
+                          <TableCell>
+                            {getFileIcon(file.file_type || '', file.file_name)}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="truncate max-w-md" title={file.file_name}>
+                              {file.file_name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatFileSize(file.file_size)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground text-sm">
+                            {file.uploaded_at ? new Date(file.uploaded_at).toLocaleString('zh-CN', {
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }) : '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="size-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="border-0 shadow-lg">
+                                <DropdownMenuItem onClick={() => handlePreviewFile(file)}>
+                                  <Eye className="size-4 mr-2" />
+                                  预览
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  onClick={() => handleDeleteFile(file, project.id)}
+                                  className="text-destructive"
+                                >
+                                  <Trash2 className="size-4 mr-2" />
+                                  删除
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center text-muted-foreground text-sm py-4">
+                    此项目暂无文件
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-
-          {expandedFolders.has(folder.id) && filesByFolder[folder.id] && filesByFolder[folder.id].length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]"></TableHead>
-                  <TableHead>文件名</TableHead>
-                  <TableHead className="w-[120px] text-right">文件大小</TableHead>
-                  <TableHead className="w-[180px]">上传时间</TableHead>
-                  <TableHead className="w-[60px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filesByFolder[folder.id].map((file) => (
-                  <TableRow 
-                    key={file.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, file)}
-                    className="cursor-grab active:cursor-grabbing"
-                  >
-                    <TableCell>
-                      {getFileIcon(file.type)}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="truncate max-w-md" title={file.name}>
-                        {file.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatFileSize(file.size)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {new Date(file.createdAt).toLocaleString('zh-CN', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {isAudioFile(file.type, file.name) && (
-                            <>
-                              <DropdownMenuItem onClick={() => handleTranscribeAudio(file)}>
-                                <FileType className="size-4 mr-2 text-purple-600" />
-                                转为文字
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                            </>
-                          )}
-                          <DropdownMenuItem onClick={() => handleMoveFile(file.id, undefined)}>
-                            <FolderInput className="size-4 mr-2" />
-                            移至未分类
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {folders.filter(f => f.id !== folder.id).map(targetFolder => (
-                            <DropdownMenuItem
-                              key={targetFolder.id}
-                              onClick={() => handleMoveFile(file.id, targetFolder.id)}
-                            >
-                              <Folder className="size-4 mr-2" style={{ color: targetFolder.color }} />
-                              移至 {targetFolder.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-      ))}
-
-      {/* Uncategorized Files */}
-      {uncategorizedFiles.length > 0 && (
-        <div className="rounded-lg bg-card overflow-hidden">
-          <div className="px-4 py-2 bg-muted/30 flex items-center gap-2">
-            <Folder className="size-4 text-muted-foreground" />
-            <span className="font-medium">未分类文件</span>
-            <span className="text-xs text-muted-foreground">
-              ({uncategorizedFiles.length} 个文件)
-            </span>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40px]"></TableHead>
-                <TableHead>文件名</TableHead>
-                <TableHead className="w-[120px] text-right">文件大小</TableHead>
-                <TableHead className="w-[180px]">上传时间</TableHead>
-                <TableHead className="w-[60px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {uncategorizedFiles.map((file) => (
-                <TableRow 
-                  key={file.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, file)}
-                  className="cursor-grab active:cursor-grabbing"
-                >
-                  <TableCell>
-                    {getFileIcon(file.type)}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    <div className="truncate max-w-md" title={file.name}>
-                      {file.name}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatFileSize(file.size)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {new Date(file.createdAt).toLocaleString('zh-CN', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <MoreVertical className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {isAudioFile(file.type, file.name) && (
-                          <>
-                            <DropdownMenuItem onClick={() => handleTranscribeAudio(file)}>
-                              <FileType className="size-4 mr-2 text-purple-600" />
-                              转为文字
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-                        {folders.map(targetFolder => (
-                          <DropdownMenuItem
-                            key={targetFolder.id}
-                            onClick={() => handleMoveFile(file.id, targetFolder.id)}
-                          >
-                            <Folder className="size-4 mr-2" style={{ color: targetFolder.color }} />
-                            移至 {targetFolder.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {uploadedFiles.length === 0 && (
-        <div className="text-center text-muted-foreground text-sm py-8">
-          暂无上传文件。点击右上角的"一键上传"添加文件。
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }
