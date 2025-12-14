@@ -1,199 +1,141 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { ProjectItem, useAppStore } from '@/store/useAppStore';
-import { CheckCircle2, Circle, FileText, FolderPlus, Download, Trash2, FileCheck, Edit, MessageSquare, Loader2 } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { ProjectItem } from '@/store/useAppStore';
+import { CheckCircle2, FileText, FolderPlus, Download, Trash2, Loader2, FileAudio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { uploadProjectFiles } from '@/lib/projectApi';
+import { deleteProjectFile, getProjectFileDownloadUrl, getProjectFiles, uploadProjectFiles } from '@/lib/projectApi';
+import { toast } from 'sonner';
+import { useAudioTranscribeTasks } from './hooks/useAudioTranscribeTasks';
 
 interface ProjectProgressLedgerProps {
   project: ProjectItem;
 }
 
-interface ProjectEvent {
-  id: string;
-  name: string;
-  status: 'completed' | 'active' | 'pending';
-  icon?: React.ElementType;
-}
-
-interface ProgressStage {
-  id: 'received' | 'accepted' | 'rejected' | 'initiated';
-  name: string;
-  status: 'completed' | 'active' | 'pending';
-  events: ProjectEvent[];
-}
-
-// 根据项目数据和状态判断事件是否存在
-function getProjectEvents(project: ProjectItem, stageId: string): ProjectEvent[] {
-  const events: ProjectEvent[] = [];
-
-  // 项目创建 - 总是存在（因为项目已经存在）
-  if (stageId === 'received') {
-    events.push({
-      id: 'project_created',
-      name: '项目创建',
-      status: 'completed',
-      icon: FileText,
-    });
-  }
-
-  // BP文件上传 - 如果有 sourceFileName 或 uploadedFiles，说明已上传
-  if (stageId === 'received' && (project.sourceFileName || project.createdAt)) {
-    events.push({
-      id: 'bp_uploaded',
-      name: 'BP文件上传',
-      status: 'completed',
-      icon: FileText,
-    });
-  }
-
-  // BP解析完成 - 如果项目有详细信息（如公司名称、产品等），说明解析完成
-  if (stageId === 'received' && (project.companyName || project.coreProduct || project.description)) {
-    events.push({
-      id: 'bp_extraction_completed',
-      name: 'BP解析完成',
-      status: 'completed',
-      icon: FileCheck,
-    });
-  }
-
-  // 项目信息更新 - 如果项目有 updatedAt 且与 createdAt 不同，说明有更新
-  if ((stageId === 'accepted' || stageId === 'rejected' || stageId === 'initiated') && 
-      project.updatedAt && project.updatedAt !== project.createdAt) {
-    events.push({
-      id: 'project_updated',
-      name: '项目信息更新',
-      status: 'completed',
-      icon: Edit,
-    });
-  }
-
-  // 项目状态变更 - 如果当前状态不是 received，说明状态已变更
-  if ((stageId === 'accepted' || stageId === 'rejected' || stageId === 'initiated') && 
-      project.status !== 'received') {
-    events.push({
-      id: 'status_changed',
-      name: '项目状态变更',
-      status: 'completed',
-      icon: FileCheck,
-    });
-  }
-
-  // 投资经理添加笔记 - 如果有 description
-  if ((stageId === 'accepted' || stageId === 'rejected' || stageId === 'initiated') && 
-      project.description) {
-    events.push({
-      id: 'note_added',
-      name: '投资经理添加笔记',
-      status: 'completed',
-      icon: MessageSquare,
-    });
-  }
-
-  // 音频文件上传和转写 - 暂时不显示（需要额外的数据字段）
-  // audio_uploaded, audios_transcribe
-
-  // 文件删除 - 暂时不显示（需要事件历史记录）
-  // file_deleted
-
-  return events;
-}
-
-// 根据项目状态生成进度阶段
-function getProgressStages(project: ProjectItem): ProgressStage[] {
-  const stages: ProgressStage[] = [];
-  
-  // 第一阶段：待受理（总是显示）
-  const receivedEvents = getProjectEvents(project, 'received');
-  stages.push({
-    id: 'received',
-    name: '待受理',
-    status: project.status === 'received' ? 'active' : 'completed',
-    events: receivedEvents,
-  });
-
-  // 第二阶段：根据状态显示"不受理"或"已受理"
-  if (project.status === 'rejected') {
-    // 不受理
-    const rejectedEvents = getProjectEvents(project, 'rejected');
-    stages.push({
-      id: 'rejected',
-      name: '不受理',
-      status: 'active',
-      events: rejectedEvents,
-    });
-  } else if (project.status === 'accepted' || project.status === 'initiated') {
-    // 已受理
-    const acceptedEvents = getProjectEvents(project, 'accepted');
-    stages.push({
-      id: 'accepted',
-      name: '已受理',
-      status: project.status === 'accepted' ? 'active' : 'completed',
-      events: acceptedEvents,
-    });
-  }
-
-  // 第三阶段：已立项（只有已立项状态才显示）
-  if (project.status === 'initiated') {
-    const initiatedEvents = getProjectEvents(project, 'initiated');
-    stages.push({
-      id: 'initiated',
-      name: '已立项',
-      status: 'active',
-      events: initiatedEvents,
-    });
-  }
-
-  return stages;
-}
-
-// 获取任务状态的颜色样式
-function getTaskColorClasses(taskStatus: 'completed' | 'active' | 'pending'): string {
-  switch (taskStatus) {
-    case 'completed':
-      return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400';
-    case 'active':
-      return 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-2 border-blue-300 dark:border-blue-700';
-    case 'pending':
-      return 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400';
-  }
-}
-
 export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
-  const { uploadedFiles } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [files, setFiles] = useState<Array<{ id: string; name: string; size: number; type: string; createdAt: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | undefined>(undefined);
+  const [hasUserSelectedStatus, setHasUserSelectedStatus] = useState(false);
+  const [deletingFileIds, setDeletingFileIds] = useState<Set<string>>(new Set());
+  const [downloadingFileIds, setDownloadingFileIds] = useState<Set<string>>(new Set());
 
-  // 根据项目状态生成进度阶段
-  const progressStages = useMemo(() => getProgressStages(project), [project]);
-  
-  // 默认选中当前状态对应的阶段
-  const defaultActiveStage = useMemo(() => {
-    const currentStage = progressStages.find(s => s.status === 'active');
-    return currentStage?.id || progressStages[0]?.id || 'received';
-  }, [progressStages]);
-
-  const [activeStage, setActiveStage] = useState<string>(defaultActiveStage);
-
-  // 当项目状态变化时，更新选中的阶段
+  // 当项目状态变化时，重置筛选规则：不点击状态按钮时 status=all
   useEffect(() => {
-    const currentStage = progressStages.find(s => s.status === 'active');
-    const newActiveStage = currentStage?.id || progressStages[0]?.id || 'received';
-    setActiveStage(newActiveStage);
-  }, [project.status, progressStages]);
+    setHasUserSelectedStatus(false);
+    setSelectedStatus(undefined);
+  }, [project.status]);
 
-  const activeStageData = progressStages.find(s => s.id === activeStage);
+  const refreshFiles = useCallback(async (opts?: { status?: string }) => {
+    setIsLoadingFiles(true);
+    try {
+      const list = await getProjectFiles(String(project.id), { status: opts?.status });
+      setFiles(list.map(f => ({
+        id: f.id,
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        createdAt: f.createdAt,
+      })));
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  }, [project.id]);
 
-  // 根据选择的阶段过滤文件（这里简化处理，实际应该根据文件上传时间或阶段标记）
-  const stageFiles = useMemo(() => {
-    // 简化：根据阶段ID过滤，实际应该根据文件上传时的阶段标记
-    // 暂时返回所有文件，实际应该根据文件所属阶段过滤
-    return uploadedFiles;
-  }, [uploadedFiles, activeStage]);
+  const handleDeleteFile = useCallback(async (fileId: string) => {
+    const projId = String(project.id);
+    setDeletingFileIds(prev => new Set(prev).add(fileId));
+    try {
+      await deleteProjectFile(projId, fileId);
+      toast.success(<div className="text-sm text-emerald-600 whitespace-nowrap">文件已删除</div>, { duration: 3000 });
+      const statusToUse = hasUserSelectedStatus ? selectedStatus : 'all';
+      await refreshFiles({ status: statusToUse });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '删除失败';
+      toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });
+    } finally {
+      setDeletingFileIds(prev => {
+        const next = new Set(prev);
+        next.delete(fileId);
+        return next;
+      });
+    }
+  }, [hasUserSelectedStatus, project.id, refreshFiles, selectedStatus]);
+
+  const handleDownloadFile = useCallback(async (file: { id: string; name: string }) => {
+    const projId = String(project.id);
+    setDownloadingFileIds(prev => new Set(prev).add(file.id));
+    try {
+      const { preview_url } = await getProjectFileDownloadUrl(projId, file.id);
+      // 触发下载（新标签打开/或直接下载，取决于 OSS 的响应头）
+      const a = document.createElement('a');
+      a.href = preview_url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '下载失败';
+      toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });
+    } finally {
+      setDownloadingFileIds(prev => {
+        const next = new Set(prev);
+        next.delete(file.id);
+        return next;
+      });
+    }
+  }, [project.id]);
+
+  // 初始加载：不传 status（后端默认按当前项目状态返回）
+  useEffect(() => {
+    void refreshFiles({ status: 'all' });
+  }, [refreshFiles]);
+
+  const audioTasks = useAudioTranscribeTasks({
+    onAnyTaskSucceeded: () => {
+      const statusToUse = hasUserSelectedStatus ? selectedStatus : 'all';
+      void refreshFiles({ status: statusToUse });
+    },
+    pollIntervalMs: 5000,
+  });
+
+  const isAudioFileName = useCallback((name: string) => {
+    const lower = (name || '').toLowerCase();
+    return ['.mp3', '.wav', '.m4a', '.aac', '.flac', '.ogg', '.opus'].some(ext => lower.endsWith(ext));
+  }, []);
+
+  const fileHasTranscribeTask = useCallback((fileId: string) => {
+    return audioTasks.tasks.some(t => t.fileId === fileId && (t.status === 'queued' || t.status === 'processing'));
+  }, [audioTasks.tasks]);
+
+  const getActiveTranscribeTaskForFile = useCallback((fileId: string) => {
+    // 最新任务优先（tasks 里是 unshift）
+    return audioTasks.tasks.find(t => t.fileId === fileId) || null;
+  }, [audioTasks.tasks]);
+
+  const handleStartTranscribe = useCallback(async (file: { id: string; name: string }) => {
+    try {
+      const taskId = await audioTasks.startTaskForFile({ fileId: file.id, fileName: file.name });
+      console.log('[ProjectProgressLedger][audio] manual task submitted ->', { fileId: file.id, taskId, fileName: file.name });
+      toast.success(
+        <div className="text-sm text-emerald-600 whitespace-nowrap">已提交音频转写任务</div>,
+        { duration: 3000 },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '提交音频转写任务失败';
+      console.error('[ProjectProgressLedger][audio] manual submit error', err);
+      toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });
+    }
+  }, [audioTasks]);
+
+  // 根据选择的阶段过滤文件：本组件以接口返回为准
+  const stageFiles = useMemo(() => files, [files]);
 
   // 搜索过滤
   const filteredFiles = useMemo(() => {
@@ -220,23 +162,45 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
         // 多个文件上传（207 Multi-Status）
         const successCount = result.filter((item: any) => !item.error).length;
         const errorCount = result.filter((item: any) => item.error).length;
-        
+
         if (errorCount > 0) {
-          alert(`上传完成：${successCount} 个文件成功，${errorCount} 个文件失败`);
+          toast.error(
+            <div className="text-sm text-red-600 leading-snug whitespace-nowrap">
+              上传完成：{successCount}成功，{errorCount}失败
+            </div>,
+            { duration: 3000 },
+          );
         } else {
-          alert(`成功上传 ${successCount} 个文件`);
+          toast.success(
+            <div className="text-sm text-emerald-600 leading-snug whitespace-nowrap">
+              成功上传 {successCount} 个文件
+            </div>,
+            { duration: 3000 },
+          );
         }
       } else {
         // 单个文件上传（201）
-        alert('文件上传成功');
+        toast.success(
+          <div className="text-sm text-emerald-600 leading-snug whitespace-nowrap">
+            文件上传成功
+          </div>,
+          { duration: 3000 },
+        );
       }
       
       // TODO: 重新获取项目文件列表以更新显示
-      // 可以调用 getProjectFolders 或触发父组件刷新
+      // 上传后按当前筛选刷新
+      const statusToUse = hasUserSelectedStatus ? selectedStatus : 'all';
+      await refreshFiles({ status: statusToUse });
       
     } catch (error) {
       const message = error instanceof Error ? error.message : '上传失败';
-      alert(message);
+      toast.error(
+        <div className="text-sm text-red-600 leading-snug whitespace-nowrap">
+          {message}
+        </div>,
+        { duration: 3000 },
+      );
     } finally {
       setIsUploading(false);
       // 重置input
@@ -259,9 +223,9 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
     const status = project.status;
     
     if (status === 'rejected') {
-      // 不受理：待受理完成，受理显示"不受理"（红色），立项未到达
+      // 不受理：接收完成，受理显示"不受理"（红色），立项未到达
       return {
-        0: 'completed', // 待受理
+        0: 'completed', // 接收
         1: 'rejected',   // 不受理（特殊状态）
         2: 'pending'     // 立项
       }[stepIndex] || 'pending';
@@ -281,7 +245,7 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
   };
 
   const steps = [
-    { id: 'received', label: '待受理' },
+    { id: 'received', label: '接收' },
     { id: 'accepted', label: '受理' },
     { id: 'initiated', label: '立项' }
   ];
@@ -312,7 +276,7 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
     // 使用更深的颜色版本以在进度条上更明显
     switch (stepId) {
       case 'received':
-        // 待受理：琥珀色
+        // 接收：琥珀色
         return 'bg-amber-200 text-amber-700 dark:bg-amber-900/80 dark:text-amber-400';
       case 'accepted':
         // 已受理：绿色
@@ -327,16 +291,50 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
 
   const handleStepClick = (stepIndex: number) => {
     const stepId = steps[stepIndex].id;
-    const stage = progressStages.find(s => s.id === stepId);
-    if (stage) {
-      setActiveStage(stage.id);
-    }
+
+    // 点击状态按钮才传 status
+    setHasUserSelectedStatus(true);
+    const status =
+      project.status === 'rejected' && stepIndex === 1 ? 'rejected' : stepId;
+    setSelectedStatus(status);
+    void refreshFiles({ status });
   };
+
+  // 全局“空白点击”重置：点任意非交互区域 → 回到 all
+  useEffect(() => {
+    if (!hasUserSelectedStatus) return;
+
+    const handler = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (!target) return;
+
+      // 点在状态条的可点击 segment 上不重置（保持筛选）
+      if (target.closest('[data-status-segment="true"]')) return;
+
+      // 点在交互控件/表格行上不重置（避免误触）
+      if (
+        target.closest(
+          'button,a,input,textarea,select,[role="button"],[role="link"],tr,td,th',
+        )
+      ) {
+        return;
+      }
+
+      // 其余区域视为“空白处”：重置为 all
+      setHasUserSelectedStatus(false);
+      setSelectedStatus(undefined);
+      void refreshFiles({ status: 'all' });
+    };
+
+    // capture：确保能抓到更外层区域（例如项目标题旁边空白）
+    document.addEventListener('click', handler, true);
+    return () => document.removeEventListener('click', handler, true);
+  }, [hasUserSelectedStatus, refreshFiles]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Chevron Progress Bar */}
-      <div className="px-8 py-3 border-b border-border/50 bg-muted/20 flex-shrink-0">
+      <div className="px-8 py-3 bg-muted/20 flex-shrink-0">
         <div className="flex items-center w-full">
           <div className="flex items-center flex-1">
             {steps.map((step, index) => {
@@ -361,6 +359,7 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
                       index < steps.length - 1 && "mr-[-1px]",
                       index > 0 && "ml-[-1px]"
                     )}
+                    data-status-segment="true"
                     style={{
                       clipPath: index === 0 
                         ? 'polygon(0 0, calc(100% - 20px) 0, 100% 50%, calc(100% - 20px) 100%, 0 100%)'
@@ -383,35 +382,6 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
             })}
           </div>
         </div>
-        
-        {/* Stage Events - 显示当前选中阶段的事件 */}
-        <div className="w-full mt-3 pt-2">
-          {activeStageData && (
-            activeStageData.events.length === 0 ? (
-              <p className="text-sm text-muted-foreground">该阶段暂无事件</p>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {activeStageData.events.map((event) => {
-                  const Icon = event.icon || Circle;
-                  return (
-                    <div
-                      key={event.id}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors",
-                        getTaskColorClasses(event.status)
-                      )}
-                    >
-                      {event.status === 'completed' && <CheckCircle2 className="size-4" />}
-                      {event.status === 'active' && <Icon className="size-4" />}
-                      {event.status === 'pending' && <Circle className="size-4" />}
-                      <span>{event.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          )}
-        </div>
       </div>
 
       {/* File List */}
@@ -425,8 +395,17 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
               placeholder="搜索文件名..."
               className="max-w-sm"
             />
-            <Button variant="outline" size="sm" className="cursor-pointer">
-              刷新
+            <Button
+              variant="outline"
+              size="sm"
+              className="cursor-pointer"
+              onClick={() => {
+                const statusToUse = hasUserSelectedStatus ? selectedStatus : 'all';
+                void refreshFiles({ status: statusToUse });
+              }}
+              disabled={isLoadingFiles}
+            >
+              {isLoadingFiles ? '刷新中...' : '刷新'}
             </Button>
           </div>
           <div className="flex items-center gap-2">
@@ -435,7 +414,6 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
               type="file"
               className="hidden"
               multiple
-              accept=".pdf,.doc,.docx,.xlsx,.xls,.ppt,.pptx,.txt,.csv"
               onChange={handleFileUpload}
             />
             <Button 
@@ -467,7 +445,7 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
               <div className="text-center py-12">
                 <FileText className="size-16 mx-auto mb-4 text-muted-foreground/50" />
                 <p className="text-muted-foreground text-sm mb-2">
-                  该阶段暂无文件
+                  {isLoadingFiles ? '加载中...' : '该阶段暂无文件'}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   点击"子文件上传"按钮上传文件
@@ -505,17 +483,73 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
                         </td>
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {isAudioFileName(file.name) && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1.5">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      onClick={() => handleStartTranscribe({ id: file.id, name: file.name })}
+                                      disabled={fileHasTranscribeTask(file.id) || isUploading}
+                                    >
+                                      {(() => {
+                                        const t = getActiveTranscribeTaskForFile(file.id);
+                                        const isActive = t?.status === 'queued' || t?.status === 'processing';
+                                        if (isActive) return <Loader2 className="size-4 animate-spin" />;
+                                        return <FileAudio className="size-4" />;
+                                      })()}
+                                    </Button>
+                                    {(() => {
+                                      const t = getActiveTranscribeTaskForFile(file.id);
+                                      const isActive = t?.status === 'queued' || t?.status === 'processing';
+                                      if (!isActive) return null;
+                                      const pct = Math.max(0, Math.min(99, Number(t?.progress ?? 0)));
+                                      return (
+                                        <span className="text-[11px] text-muted-foreground tabular-nums w-9 text-right">
+                                          {pct}%
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {(() => {
+                                    const t = getActiveTranscribeTaskForFile(file.id);
+                                    const isActive = t?.status === 'queued' || t?.status === 'processing';
+                                    if (isActive) return `转写中 ${Math.max(0, Math.min(99, Number(t?.progress ?? 0)))}%`;
+                                    return '转文字';
+                                  })()}
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <Download className="size-4" />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleDownloadFile({ id: file.id, name: file.name })}
+                                  disabled={downloadingFileIds.has(file.id)}
+                                >
+                                  {downloadingFileIds.has(file.id)
+                                    ? <Loader2 className="size-4 animate-spin" />
+                                    : <Download className="size-4" />
+                                  }
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>下载</TooltipContent>
                             </Tooltip>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteFile(file.id)}
+                                  disabled={deletingFileIds.has(file.id)}
+                                >
                                   <Trash2 className="size-4" />
                                 </Button>
                               </TooltipTrigger>

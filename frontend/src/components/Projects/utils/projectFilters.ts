@@ -16,10 +16,10 @@ export function filterProjects(projects: ProjectItem[], searchQuery: string): Pr
 
 export function sortProjects(projects: ProjectItem[]): ProjectItem[] {
   const statusPriority: Record<string, number> = { 
-    initiated: 0, 
-    accepted: 1, 
-    rejected: 2, 
-    received: 2 
+    initiated: 1, 
+    accepted: 2, 
+    rejected: 3, 
+    received: 0 
   };
   
   return [...projects].sort((a, b) => {

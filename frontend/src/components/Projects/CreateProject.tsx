@@ -249,7 +249,12 @@ export function EnhancedUploadDialog({
                               <div className="flex items-center gap-2 flex-wrap">
                                 {/* <FileText className="size-4 text-muted-foreground flex-shrink-0" /> */}
                                 <span className="font-medium truncate">{task.fileName}</span>
-                                <span className="text-[11px] text-muted-foreground whitespace-nowrap ml-3">
+                                <span
+                                  className={[
+                                    'text-[11px] text-muted-foreground whitespace-nowrap',
+                                    task.status === 'error' ? 'ml-0' : 'ml-3',
+                                  ].join(' ')}
+                                >
                                   {formatFileSize(task.fileSize)} · {getTaskStatusText(task)}
                                 </span>
                               </div>
@@ -270,20 +275,24 @@ export function EnhancedUploadDialog({
                         {task.status === 'uploading' && (
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground">上传进度</span>
-                              <span className="font-medium">{task.uploadProgress}%</span>
+                              <span className="text-muted-foreground pl-6">上传进度</span>
+                              <span className="font-medium pr-6">{task.uploadProgress}%</span>
                             </div>
-                            <Progress value={task.uploadProgress} className="h-1.5" />
+                            <div className="px-6">
+                              <Progress value={task.uploadProgress} className="h-1.5" />
+                            </div>
                           </div>
                         )}
 
                         {task.status === 'parsing' && (
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground">解析进度</span>
-                              <span className="font-medium">{task.parseProgress}%</span>
+                              <span className="text-muted-foreground pl-6">解析进度</span>
+                              <span className="font-medium pr-6">{task.parseProgress}%</span>
                             </div>
-                            <Progress value={task.parseProgress} className="h-1.5" />
+                            <div className="px-6">
+                              <Progress value={task.parseProgress} className="h-1.5" />
+                            </div>
                           </div>
                         )}
                       </div>

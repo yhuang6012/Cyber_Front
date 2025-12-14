@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect } from 'react';
 import { useAppStore, ProjectItem } from '@/store/useAppStore';
 import {
   uploadBpFiles,
-  openPdfTasksSse,
+  openPdfTasksPolling,
   getProjectIntakeDraft,
   PdfTaskStatus,
 } from '@/lib/projectApi';
@@ -14,30 +14,41 @@ export function useFileUpload() {
     updateProject,
   } = useAppStore();
 
-  // SSE connection ref for cleanup
-  const sseConnectionRef = useRef<{ close: () => void } | null>(null);
+  // Polling connection ref for cleanup
+  const pollingRef = useRef<{ close: () => void } | null>(null);
 
   // Track pending tasks: taskId -> { uiTaskId, fileName, fileSize, projectId }
   const pendingTasksRef = useRef<Map<string, { uiTaskId: string; fileName: string; fileSize: number; projectId: string }>>(new Map());
 
-  // Cleanup SSE on unmount
+  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      sseConnectionRef.current?.close();
+      pollingRef.current?.close();
     };
   }, []);
 
-  // Handle SSE task updates
-  const handleSseTaskUpdate = useCallback(async (status: PdfTaskStatus) => {
+  // Handle polling task updates
+  const handlePdfTaskUpdate = useCallback(async (status: PdfTaskStatus) => {
     const taskInfo = pendingTasksRef.current.get(status.task_id);
     if (!taskInfo) return;
 
     const { uiTaskId, fileName, projectId } = taskInfo;
+    const normalized = String(status.status || '').toLowerCase();
+    const nextProgress = Math.max(
+      0,
+      Math.min(100, Number(status.progress ?? 0)),
+    );
 
-    if (status.status === 'processing') {
-      // Still parsing - update progress (estimate based on time or just show indeterminate)
-      updateUploadTask(uiTaskId, { status: 'parsing', parseProgress: 50 });
-    } else if (status.status === 'completed') {
+    if (normalized === 'pending' || normalized === 'processing') {
+      // 轮询时使用后端状态 + 前端估算 progress 推进进度条
+      updateUploadTask(uiTaskId, {
+        status: 'parsing',
+        parseProgress: Math.max(5, Math.min(95, nextProgress || 10)),
+      });
+      return;
+    }
+
+    if (normalized === 'completed') {
       // Parsing completed - fetch project data via GET /api/projects/{project_id}
       updateUploadTask(uiTaskId, { status: 'parsing', parseProgress: 80 });
 
@@ -90,21 +101,26 @@ export function useFileUpload() {
       // Remove from pending tasks
       pendingTasksRef.current.delete(status.task_id);
 
-      // Close SSE if no more pending tasks
+      // Close polling if no more pending tasks
       if (pendingTasksRef.current.size === 0) {
-        sseConnectionRef.current?.close();
-        sseConnectionRef.current = null;
+        pollingRef.current?.close();
+        pollingRef.current = null;
       }
-    } else if (status.status === 'failed' || status.status === 'error') {
+    } else if (normalized === 'failed' || normalized === 'failed_permanently' || normalized === 'error') {
+      const rawErr: any = (status as any)?.error;
+      const detail =
+        typeof rawErr === 'string'
+          ? rawErr
+          : rawErr?.detail || rawErr?.message || rawErr?.error || '';
       updateUploadTask(uiTaskId, {
         status: 'error',
-        error: '解析失败',
+        error: detail || '解析失败',
       });
       pendingTasksRef.current.delete(status.task_id);
     }
   }, [updateUploadTask, updateProject]);
 
-  // Upload files via real API and track with SSE
+  // Upload files via real API and track with polling
   const processFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
 
@@ -119,15 +135,27 @@ export function useFileUpload() {
       // Call the real upload API
       const results = await uploadBpFiles(files);
 
-      // Process results and start SSE tracking
+      // Process results and start polling tracking
       const pdfTaskIds: string[] = [];
 
       for (const result of results) {
-        // Find matching file by name (from oss_key or original order)
-        const fileName = result.oss_key?.split('/').pop() || '';
-        const matchedEntry = Array.from(fileTaskMap.entries()).find(
-          ([name]) => fileName.includes(name) || name.includes(fileName.replace(/\.[^.]+$/, ''))
-        );
+        // Find matching file by name (prefer server-provided name, fallback to original order)
+        const responseFileName =
+          (result as any)?.oss_key?.split?.('/')?.pop?.() ||
+          (result as any)?.file_name ||
+          (result as any)?.filename ||
+          (result as any)?.original_filename ||
+          (result as any)?.error?.existing_file?.file_name ||
+          '';
+
+        const matchedEntry = responseFileName
+          ? Array.from(fileTaskMap.entries()).find(([name]) => {
+              if (!name) return false;
+              if (responseFileName === name) return true;
+              // 容忍后端返回的 key 含路径等情况
+              return responseFileName.includes(name) || name.includes(responseFileName.replace(/\.[^.]+$/, ''));
+            })
+          : undefined;
         
         // If no match by name, use first unprocessed entry
         const [matchedFileName, taskInfo] = matchedEntry || fileTaskMap.entries().next().value || [];
@@ -139,6 +167,34 @@ export function useFileUpload() {
 
         // Update upload progress to 100%
         updateUploadTask(uiTaskId, { uploadProgress: 100 });
+
+        // 如果后端返回该文件的错误（例如重复上传），直接展示 detail 并停止后续流程（不建卡片、不启动 SSE）
+        const rawErr: any = (result as any)?.error;
+        const statusStr = String((result as any)?.status ?? '').toLowerCase();
+        const isFailedByStatus =
+          statusStr === 'error' ||
+          statusStr === 'failed' ||
+          statusStr === 'fail';
+
+        if (rawErr || isFailedByStatus) {
+          const detail =
+            typeof rawErr === 'string'
+              ? rawErr
+              : rawErr?.detail || rawErr?.message || rawErr?.error || '';
+
+          const fallbackText =
+            detail ||
+            (isFailedByStatus
+              ? `上传失败（status=${String((result as any)?.status)}）`
+              : '上传失败');
+
+          updateUploadTask(uiTaskId, {
+            status: 'error',
+            error: fallbackText,
+            parseProgress: 0,
+          });
+          continue;
+        }
 
         // Create a pending project
         const projectId = String(result.project_id || crypto.randomUUID());
@@ -167,7 +223,7 @@ export function useFileUpload() {
           ],
         }));
 
-        // If we have a pdf_task_id, track it for SSE
+        // If we have a pdf_task_id, track it for polling
         if (result.pdf_task_id) {
           const pdfTaskId = String(result.pdf_task_id);
           pdfTaskIds.push(pdfTaskId);
@@ -191,25 +247,29 @@ export function useFileUpload() {
         }
       }
 
-      // Start SSE connection if we have tasks to track
+      // Start polling if we have tasks to track
       if (pdfTaskIds.length > 0) {
-        // Close existing connection if any
-        sseConnectionRef.current?.close();
+        // Close existing polling if any
+        pollingRef.current?.close();
 
-        sseConnectionRef.current = openPdfTasksSse(pdfTaskIds, {
-          onTaskUpdate: handleSseTaskUpdate,
+        pollingRef.current = openPdfTasksPolling(pdfTaskIds, {
+          onTaskUpdate: handlePdfTaskUpdate,
           onError: (err) => {
-            console.error('[SSE] Connection error:', err);
-            // Mark all pending tasks as error
-            for (const [, info] of pendingTasksRef.current.entries()) {
-              updateUploadTask(info.uiTaskId, {
-                status: 'error',
-                error: 'SSE 连接失败',
-              });
-            }
-            pendingTasksRef.current.clear();
+            // 轮询过程中出现单次网络错误时，不要把任务直接标红（后台可能仍在解析）
+            console.warn('[PDF Polling] request error:', err);
           },
-        });
+        }, { intervalMs: 5000 });
+      }
+
+      // 如果后端返回结果条数不足/无法匹配，避免任务一直处于 uploading 状态
+      if (fileTaskMap.size > 0) {
+        for (const [, { uiTaskId }] of fileTaskMap.entries()) {
+          updateUploadTask(uiTaskId, {
+            status: 'error',
+            error: '上传失败：未收到该文件的返回结果',
+          });
+        }
+        fileTaskMap.clear();
       }
     } catch (error) {
       // Mark all tasks as error
@@ -220,7 +280,7 @@ export function useFileUpload() {
         });
       }
     }
-  }, [addUploadTask, updateUploadTask, handleSseTaskUpdate]);
+  }, [addUploadTask, updateUploadTask, handlePdfTaskUpdate]);
 
   return { processFiles };
 }

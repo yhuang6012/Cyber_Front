@@ -20,6 +20,7 @@ export interface PdfTaskStatus {
   status: string; // 'processing' | 'completed' | ...
   project_id?: string | number;
   extracted_info_url?: string;
+  progress?: number; // 0-100（前端轮询估算进度）
   [key: string]: any;
 }
 
@@ -494,100 +495,131 @@ export async function updateProject(
 }
 
 /**
- * 通过 Fetch + ReadableStream 模拟 SSE，以支持在 Header 中传递 Token。
- * GET /api/pdf/sse/tasks?task_ids=uuid1,uuid2,...
+ * 查询 PDF 解析任务状态
+ * GET /api/pdf/tasks/{task_id}
  */
-export function openPdfTasksSse(
+export async function getPdfTaskStatus(
+  taskId: string,
+  tokenOverride?: string,
+  signal?: AbortSignal,
+): Promise<any> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) throw new Error('请先登录');
+
+  const url = `${getProjectBaseUrl()}/api/pdf/tasks/${encodeURIComponent(taskId)}`;
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    signal,
+    cache: 'no-store',
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(
+      `获取 PDF 任务状态失败: ${resp.status} ${resp.statusText || ''} ${text}`,
+    );
+  }
+
+  return await resp.json();
+}
+
+/**
+ * 轮询 PDF 解析任务状态（替代 SSE）
+ *
+ * - 每 intervalMs 查询一次 GET /api/pdf/tasks/{task_id}
+ * - 轮询到 completed/failed 后自动停止该 task 的轮询
+ * - progress 为前端估算值（便于驱动进度条）
+ */
+export function openPdfTasksPolling(
   taskIds: string[],
   handlers: {
     onTaskUpdate: (status: PdfTaskStatus) => void;
     onError?: (error: any) => void;
   },
+  options?: {
+    intervalMs?: number;
+  },
 ): { close: () => void } {
-  if (!taskIds.length) {
-    throw new Error('openPdfTasksSse: taskIds 不能为空');
-  }
+  if (!taskIds.length) throw new Error('openPdfTasksPolling: taskIds 不能为空');
 
   const { authToken } = useAppStore.getState();
-  const params = new URLSearchParams();
-  params.set('task_ids', taskIds.join(','));
-  
-  // 不需要再在 URL 里传 token，改为 Header 传递
-  const url = `${getProjectBaseUrl()}/api/pdf/sse/tasks?${params.toString()}`;
+  if (!authToken) throw new Error('openPdfTasksPolling: 请先登录（缺少 authToken）');
 
+  const intervalMs = Math.max(1000, Number(options?.intervalMs ?? 5000));
   const controller = new AbortController();
   const signal = controller.signal;
 
-  // 使用 fetch 模拟 EventSource
-  void (async () => {
+  let closed = false;
+  let inFlight = false;
+  const done = new Set<string>();
+  const progressMap = new Map<string, number>();
+
+  const computeNextProgress = (taskId: string, status: string) => {
+    const current = progressMap.get(taskId) ?? 0;
+    const s = String(status || '').toLowerCase();
+
+    if (s === 'completed') return 100;
+    if (s === 'failed' || s === 'failed_permanently' || s === 'error') return current;
+    if (s === 'pending') return Math.max(current, 10);
+    // processing / others
+    return Math.min(95, Math.max(current, 10) + 7);
+  };
+
+  const tick = async () => {
+    if (closed || inFlight) return;
+    const remaining = taskIds.filter(id => !done.has(id));
+    if (remaining.length === 0) return;
+
+    inFlight = true;
     try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'text/event-stream',
-          CacheCheck: 'no-cache',
-          Connection: 'keep-alive',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-        },
-        signal,
-      });
+      await Promise.all(
+        remaining.map(async (taskId) => {
+          try {
+            const data: any = await getPdfTaskStatus(taskId, authToken, signal);
+            const status = String(data?.status ?? '');
+            const nextProgress = computeNextProgress(taskId, status);
+            progressMap.set(taskId, nextProgress);
 
-      if (!response.ok) {
-        const msg = await response.text().catch(() => '');
-        throw new Error(`SSE Connection failed: ${response.status} ${msg}`);
-      }
+            const update: PdfTaskStatus = {
+              task_id: String(data?.task_id ?? taskId),
+              status,
+              project_id: data?.project_id,
+              extracted_info_url: data?.extracted_info_url ?? data?.extracted_info_url,
+              progress: nextProgress,
+              ...data,
+            };
+            handlers.onTaskUpdate(update);
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('ReadableStream not supported');
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        // 保留最后一部分（可能是不完整的）
-        buffer = parts.pop() || '';
-
-        for (const part of parts) {
-          if (!part.trim()) continue;
-          
-          const lines = part.split('\n');
-          let eventType = 'message';
-          let data = '';
-
-          for (const line of lines) {
-            if (line.startsWith('event:')) {
-              eventType = line.slice(6).trim();
-            } else if (line.startsWith('data:')) {
-              data = line.slice(5).trim();
+            const s = status.toLowerCase();
+            if (s === 'completed' || s === 'failed' || s === 'failed_permanently' || s === 'error') {
+              done.add(taskId);
             }
+          } catch (e) {
+            // 单次失败不终止全部轮询，交由 onError 做告警即可
+            handlers.onError?.(e);
           }
-
-          if (eventType === 'task_update' && data) {
-            try {
-              const parsed = JSON.parse(data) as PdfTaskStatus;
-              handlers.onTaskUpdate(parsed);
-            } catch (e) {
-              console.error('[pdf_sse] JSON parse error', e);
-            }
-          }
-        }
-      }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('[pdf_sse] Stream error', err);
-        handlers.onError?.(err);
-      }
+        }),
+      );
+    } finally {
+      inFlight = false;
     }
-  })();
+  };
+
+  // 先触发一次，避免等第一轮 interval
+  void tick();
+  const timer = window.setInterval(() => {
+    void tick();
+  }, intervalMs);
 
   return {
     close: () => {
-      console.log('[pdf_sse] Closing connection');
+      closed = true;
+      window.clearInterval(timer);
       controller.abort();
     },
   };
@@ -628,6 +660,149 @@ export async function getProjectFolders(
   }
 
   return response.json();
+}
+
+/**
+ * 获取项目文件列表
+ * GET /api/projects/{project_id}/files
+ *
+ * - 不传 status：默认返回“当前项目状态下上传的文件”（后端默认行为）
+ * - status="all"：返回所有文件（不限定状态）
+ * - 也可传具体状态值（received/accepted/initiated/rejected 等）
+ * - folder_id：可选，筛选指定文件夹
+ */
+export async function getProjectFiles(
+  projectId: string,
+  options?: {
+    status?: string;
+    folder_id?: string;
+  },
+  tokenOverride?: string,
+): Promise<
+  Array<{
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    createdAt: string;
+    uploadedBy?: string;
+    projectStatusAtUpload?: string;
+    raw: any;
+  }>
+> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) throw new Error('请先登录');
+
+  const params = new URLSearchParams();
+  if (options?.status) params.set('status', options.status);
+  if (options?.folder_id) params.set('folder_id', options.folder_id);
+
+  const qs = params.toString();
+  const url = `${getProjectBaseUrl()}/api/projects/${encodeURIComponent(projectId)}/files${qs ? `?${qs}` : ''}`;
+
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`获取项目文件列表失败: ${resp.status} ${resp.statusText || ''} ${text}`);
+  }
+
+  const data: any = await resp.json().catch(() => ({}));
+  const files: any[] = Array.isArray(data) ? data : Array.isArray(data?.files) ? data.files : [];
+
+  return files.map((f: any) => ({
+    id: String(f.id ?? f.file_id ?? crypto.randomUUID()),
+    name: String(f.file_name ?? f.name ?? ''),
+    size: Number(f.file_size ?? f.size ?? 0),
+    type: String(f.file_type ?? f.type ?? ''),
+    createdAt: String(f.uploaded_at ?? f.created_at ?? new Date().toISOString()),
+    uploadedBy: f.uploaded_by ?? f.uploaded_by_username,
+    projectStatusAtUpload: f.project_status_at_upload,
+    raw: f,
+  }));
+}
+
+/**
+ * 删除项目文件
+ * DELETE /api/projects/{project_id}/files/{file_id}
+ */
+export async function deleteProjectFile(
+  projectId: string,
+  fileId: string,
+  tokenOverride?: string,
+): Promise<any> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) throw new Error('请先登录');
+
+  const url = `${getProjectBaseUrl()}/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}`;
+  const resp = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`删除文件失败: ${resp.status} ${resp.statusText || ''} ${text}`);
+  }
+
+  // 可能返回 json，也可能空 body，这里都兼容
+  const contentType = resp.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return await resp.json().catch(() => ({}));
+  }
+  return await resp.text().catch(() => '');
+}
+
+/**
+ * 获取项目文件下载 URL（OSS 签名 URL）
+ * GET /api/projects/{project_id}/files/{file_id}/download-url
+ */
+export async function getProjectFileDownloadUrl(
+  projectId: string,
+  fileId: string,
+  tokenOverride?: string,
+): Promise<{ preview_url: string; file_name?: string; expires_at?: string; expires_in_seconds?: number; raw: any }> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) throw new Error('请先登录');
+
+  const url = `${getProjectBaseUrl()}/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}/download-url`;
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`获取下载链接失败: ${resp.status} ${resp.statusText || ''} ${text}`);
+  }
+
+  const data: any = await resp.json().catch(() => ({}));
+  const previewUrl: string | undefined = data?.preview_url ?? data?.url ?? data?.download_url;
+  if (!previewUrl) throw new Error('下载接口返回缺少 preview_url');
+
+  return {
+    preview_url: String(previewUrl),
+    file_name: data?.file_name,
+    expires_at: data?.expires_at,
+    expires_in_seconds: data?.expires_in_seconds,
+    raw: data,
+  };
 }
 
 /**
@@ -753,4 +928,93 @@ export async function uploadProjectFiles(
   }
 
   return await response.json();
+}
+
+/**
+ * 提交长音频转写任务
+ * POST /api/audio/transcribe-long
+ */
+export async function submitLongAudioTranscription(
+  params: {
+    file_id: string;
+    model?: string; // 默认 paraformer-v2
+    language_hints?: string[]; // e.g. ["zh"]
+    custom_prompt?: string;
+  },
+  tokenOverride?: string,
+): Promise<any> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) throw new Error('请先登录');
+
+  const url = `${getProjectBaseUrl()}/api/audio/transcribe-long`;
+  console.log('[projectApi][audio] submitLongAudioTranscription ->', url, {
+    file_id: params.file_id,
+    model: params.model ?? 'paraformer-v2',
+    language_hints: params.language_hints,
+    has_custom_prompt: !!params.custom_prompt,
+  });
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      model: 'paraformer-v2',
+      ...params,
+    }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    console.error('[projectApi][audio] submitLongAudioTranscription failed', resp.status, resp.statusText, text);
+    throw new Error(`提交音频转写任务失败: ${resp.status} ${resp.statusText || ''} ${text}`);
+  }
+
+  const data = await resp.json().catch(() => ({}));
+  console.log('[projectApi][audio] submitLongAudioTranscription response <-', data);
+  return data;
+}
+
+/**
+ * 查询长音频转写任务状态
+ * GET /api/audio/transcribe-long/{task_id}?force_sync=true
+ */
+export async function getLongAudioTranscriptionStatus(
+  taskId: string,
+  options?: { force_sync?: boolean },
+  tokenOverride?: string,
+): Promise<any> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) throw new Error('请先登录');
+
+  const params = new URLSearchParams();
+  if (options?.force_sync != null) {
+    params.set('force_sync', String(options.force_sync));
+  }
+
+  const qs = params.toString();
+  const url = `${getProjectBaseUrl()}/api/audio/transcribe-long/${encodeURIComponent(taskId)}${qs ? `?${qs}` : ''}`;
+  console.log('[projectApi][audio] getLongAudioTranscriptionStatus ->', url);
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    console.error('[projectApi][audio] getLongAudioTranscriptionStatus failed', resp.status, resp.statusText, text);
+    throw new Error(`获取音频转写状态失败: ${resp.status} ${resp.statusText || ''} ${text}`);
+  }
+
+  const data = await resp.json().catch(() => ({}));
+  console.log('[projectApi][audio] getLongAudioTranscriptionStatus response <-', data);
+  return data;
 }
