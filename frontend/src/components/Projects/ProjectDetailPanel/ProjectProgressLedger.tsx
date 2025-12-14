@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { deleteProjectFile, getProjectFileDownloadUrl, getProjectFiles, uploadProjectFiles } from '@/lib/projectApi';
 import { toast } from 'sonner';
 import { useAudioTranscribeTasks } from './hooks/useAudioTranscribeTasks';
+import { AudioTranscribeDialog } from './AudioTranscribeDialog';
 
 interface ProjectProgressLedgerProps {
   project: ProjectItem;
@@ -24,6 +25,11 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
   const [hasUserSelectedStatus, setHasUserSelectedStatus] = useState(false);
   const [deletingFileIds, setDeletingFileIds] = useState<Set<string>>(new Set());
   const [downloadingFileIds, setDownloadingFileIds] = useState<Set<string>>(new Set());
+  
+  // 音频转写对话框状态
+  const [transcribeDialogOpen, setTranscribeDialogOpen] = useState(false);
+  const [transcribeTargetFile, setTranscribeTargetFile] = useState<{ id: string; name: string } | null>(null);
+  const [isSubmittingTranscribe, setIsSubmittingTranscribe] = useState(false);
 
   // 当项目状态变化时，重置筛选规则：不点击状态按钮时 status=all
   useEffect(() => {
@@ -119,20 +125,51 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
     return audioTasks.tasks.find(t => t.fileId === fileId) || null;
   }, [audioTasks.tasks]);
 
-  const handleStartTranscribe = useCallback(async (file: { id: string; name: string }) => {
+  // 点击转写按钮 -> 打开对话框
+  const handleStartTranscribe = useCallback((file: { id: string; name: string }) => {
+    setTranscribeTargetFile(file);
+    setTranscribeDialogOpen(true);
+  }, []);
+
+  // 对话框确认后提交转写任务
+  const handleConfirmTranscribe = useCallback(async (customPrompt: string) => {
+    if (!transcribeTargetFile) return;
+    
+    setIsSubmittingTranscribe(true);
     try {
-      const taskId = await audioTasks.startTaskForFile({ fileId: file.id, fileName: file.name });
-      console.log('[ProjectProgressLedger][audio] manual task submitted ->', { fileId: file.id, taskId, fileName: file.name });
+      const taskId = await audioTasks.startTaskForFile({
+        fileId: transcribeTargetFile.id,
+        fileName: transcribeTargetFile.name,
+        customPrompt: customPrompt || undefined,
+      });
+      console.log('[ProjectProgressLedger][audio] manual task submitted ->', {
+        fileId: transcribeTargetFile.id,
+        taskId,
+        fileName: transcribeTargetFile.name,
+        customPrompt,
+      });
       toast.success(
         <div className="text-sm text-emerald-600 whitespace-nowrap">已提交音频转写任务</div>,
         { duration: 3000 },
       );
+      setTranscribeDialogOpen(false);
+      setTranscribeTargetFile(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '提交音频转写任务失败';
       console.error('[ProjectProgressLedger][audio] manual submit error', err);
       toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });
+    } finally {
+      setIsSubmittingTranscribe(false);
     }
-  }, [audioTasks]);
+  }, [audioTasks, transcribeTargetFile]);
+
+  // 取消转写对话框
+  const handleCancelTranscribe = useCallback(() => {
+    if (!isSubmittingTranscribe) {
+      setTranscribeDialogOpen(false);
+      setTranscribeTargetFile(null);
+    }
+  }, [isSubmittingTranscribe]);
 
   // 根据选择的阶段过滤文件：本组件以接口返回为准
   const stageFiles = useMemo(() => files, [files]);
@@ -566,6 +603,15 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
           </div>
         </ScrollArea>
       </div>
+
+      {/* 音频转写对话框 */}
+      <AudioTranscribeDialog
+        open={transcribeDialogOpen}
+        fileName={transcribeTargetFile?.name ?? ''}
+        onCancel={handleCancelTranscribe}
+        onConfirm={handleConfirmTranscribe}
+        isSubmitting={isSubmittingTranscribe}
+      />
     </div>
   );
 }

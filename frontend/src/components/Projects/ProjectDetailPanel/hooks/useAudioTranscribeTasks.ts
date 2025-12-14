@@ -35,7 +35,7 @@ function normalizeTaskStatus(resp: any): AudioTranscribeTaskStatus {
   const ok = resp?.success;
   const s = String(resp?.data?.task_status ?? resp?.data?.status ?? resp?.status ?? '').toUpperCase();
 
-  if (ok === true && (s === 'SUCCEEDED' || s === 'SUCCESS' || s === 'COMPLETED')) return 'succeeded';
+  if (ok === true && s === 'SUCCEEDED') return 'succeeded';
   if (s === 'FAILED' || s === 'FAILURE' || s === 'ERROR') return 'failed';
   if (s === 'PROCESSING' || s === 'RUNNING' || s === 'STARTED') return 'processing';
   return 'queued';
@@ -137,12 +137,13 @@ export function useAudioTranscribeTasks(options: {
     };
   }, [stopPolling]);
 
-  const startTaskForFile = useCallback(async (file: { fileId: string; fileName: string }) => {
+  const startTaskForFile = useCallback(async (file: { fileId: string; fileName: string; customPrompt?: string }) => {
     console.log('[audio_transcribe] submit ->', file);
     const resp = await submitLongAudioTranscription({
       file_id: file.fileId,
       model: 'paraformer-v2',
       language_hints: ['zh'],
+      ...(file.customPrompt ? { custom_prompt: file.customPrompt } : {}),
     });
 
     const taskId = String(resp?.task_id ?? resp?.data?.task_id ?? resp?.id ?? '');
