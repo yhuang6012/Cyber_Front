@@ -35,7 +35,21 @@ function normalizeTaskStatus(resp: any): AudioTranscribeTaskStatus {
   const ok = resp?.success;
   const s = String(resp?.data?.task_status ?? resp?.data?.status ?? resp?.status ?? '').toUpperCase();
 
-  if (ok === true && s === 'SUCCEEDED') return 'succeeded';
+  // 检查会议纪要是否已生成
+  const minutesReady = 
+    resp?.metadata?.meeting_minutes_ready === true || 
+    !!resp?.data?.minutes_markdown_url;
+
+  // task_status 为 SUCCEEDED 但会议纪要未生成时，继续视为 processing
+  if (ok === true && s === 'SUCCEEDED') {
+    if (minutesReady) {
+      return 'succeeded';
+    }
+    // 会议纪要未准备好，继续轮询
+    console.log('[audio_transcribe] task SUCCEEDED but minutes not ready, keep polling');
+    return 'processing';
+  }
+
   if (s === 'FAILED' || s === 'FAILURE' || s === 'ERROR') return 'failed';
   if (s === 'PROCESSING' || s === 'RUNNING' || s === 'STARTED') return 'processing';
   return 'queued';

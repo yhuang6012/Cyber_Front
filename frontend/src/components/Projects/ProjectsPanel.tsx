@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Tabs } from '@/components/ui/tabs';
 import { useAppStore, ProjectItem } from '@/store/useAppStore';
 import { EnhancedUploadDialog } from './CreateProject';
@@ -6,6 +6,7 @@ import { ProjectsPanelHeader } from './ProjectsPanelHeader';
 import { ProjectsPanelContent } from './ProjectsPanelContent';
 import { useFileUpload } from './hooks/useFileUpload';
 import { useDragAndDrop } from './hooks/useDragAndDrop';
+import { useProjectSearch } from './hooks/useProjectSearch';
 import { filterProjects, sortProjects } from './utils/projectFilters';
 
 export function ProjectsPanel() {
@@ -18,8 +19,16 @@ export function ProjectsPanel() {
   } = useAppStore();
   
   const [viewMode, setViewMode] = useState<'cards' | 'files'>('cards');
-  const [searchQuery, setSearchQuery] = useState('');
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+
+  // 使用后端搜索 hook
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    isSearching,
+    hasSearchResults,
+  } = useProjectSearch({ debounceMs: 400 });
 
   const { processFiles } = useFileUpload();
 
@@ -51,9 +60,16 @@ export function ProjectsPanel() {
     setSelectedProjectId(project.id);
   };
 
-  // Filter and sort projects
-  const filteredProjects = filterProjects(projects, searchQuery);
-  const sortedProjects = sortProjects(filteredProjects);
+  // 当有搜索关键词时使用后端搜索结果，否则使用本地项目列表
+  const displayProjects = useMemo(() => {
+    if (hasSearchResults && searchQuery.trim()) {
+      // 使用后端搜索结果
+      return sortProjects(searchResults);
+    }
+    // 使用本地项目列表（支持本地过滤）
+    const filtered = filterProjects(projects, '');
+    return sortProjects(filtered);
+  }, [hasSearchResults, searchQuery, searchResults, projects]);
 
   const isUploading = hasActiveUploads();
   const activeTaskCount = uploadTasks.filter(t => t.status === 'uploading' || t.status === 'parsing').length;
@@ -73,8 +89,9 @@ export function ProjectsPanel() {
 
       <ProjectsPanelContent
         viewMode={viewMode}
-        projects={sortedProjects}
+        projects={displayProjects}
         searchQuery={searchQuery}
+        isSearching={isSearching}
         isDragging={isDragging}
         dropZoneRef={dropZoneRef}
         onDragEnter={handleDragEnter}

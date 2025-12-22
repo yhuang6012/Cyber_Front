@@ -10,7 +10,8 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { FileText, Folder, ChevronRight, ChevronDown, FileAudio, FileType, Loader2, Eye, Trash2, MoreVertical } from 'lucide-react';
-import { getProjectFolders } from '@/lib/projectApi';
+import { getProjectFolders, getProjectFilePreviewUrl } from '@/lib/projectApi';
+import { toast } from 'sonner';
 
 function getFileIcon(_fileType: string = '', fileName: string = '') {
   const name = fileName.toLowerCase();
@@ -122,12 +123,13 @@ export function FileList({ searchQuery = '' }: FileListProps) {
     e.dataTransfer.effectAllowed = 'copy';
   };
 
-  const handlePreviewFile = (file: ProjectFileItem) => {
-    // TODO: 实现文件预览功能
-    if (file.oss_url) {
-      window.open(file.oss_url, '_blank');
-    } else {
-      alert('文件预览功能开发中...');
+  const handlePreviewFile = async (file: ProjectFileItem, projectId: string) => {
+    try {
+      const { preview_url } = await getProjectFilePreviewUrl(projectId, file.id);
+      window.open(preview_url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '获取预览链接失败';
+      toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });
     }
   };
 
@@ -286,7 +288,7 @@ export function FileList({ searchQuery = '' }: FileListProps) {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="border-0 shadow-lg">
-                                <DropdownMenuItem onClick={() => handlePreviewFile(file)}>
+                                <DropdownMenuItem onClick={() => handlePreviewFile(file, project.id)}>
                                   <Eye className="size-4 mr-2" />
                                   预览
                                 </DropdownMenuItem>

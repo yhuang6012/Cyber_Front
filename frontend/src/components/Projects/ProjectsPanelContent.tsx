@@ -1,5 +1,5 @@
 import { ProjectItem } from '@/store/useAppStore';
-import { Upload } from 'lucide-react';
+import { Upload, Loader2, SearchX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProjectCard } from './ProjectCard';
 import { FileList } from './FileList';
@@ -9,6 +9,7 @@ interface ProjectsPanelContentProps {
   viewMode: 'cards' | 'files';
   projects: ProjectItem[];
   searchQuery: string;
+  isSearching?: boolean;
   isDragging: boolean;
   dropZoneRef: React.RefObject<HTMLDivElement | null>;
   onDragEnter: (e: React.DragEvent) => void;
@@ -23,6 +24,7 @@ export function ProjectsPanelContent({
   viewMode,
   projects,
   searchQuery,
+  isSearching = false,
   isDragging,
   dropZoneRef,
   onDragEnter,
@@ -65,16 +67,36 @@ export function ProjectsPanelContent({
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="space-y-3"
           >
-            {projects.length === 0 ? (
+            {/* 搜索中状态 */}
+            {isSearching ? (
               <div className="text-center py-12">
-                <Upload className="size-16 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-muted-foreground text-sm mb-2">
-                  还没有项目卡片
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  点击右上角的"上传文件"按钮，或拖拽文件到此处
-                </p>
+                <Loader2 className="size-8 mx-auto mb-4 text-muted-foreground animate-spin" />
+                <p className="text-muted-foreground text-sm">搜索中...</p>
               </div>
+            ) : projects.length === 0 ? (
+              searchQuery.trim() ? (
+                // 搜索无结果
+                <div className="text-center py-12">
+                  <SearchX className="size-16 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-muted-foreground text-sm mb-2">
+                    未找到匹配「{searchQuery}」的项目
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    尝试使用其他关键词搜索
+                  </p>
+                </div>
+              ) : (
+                // 无项目
+                <div className="text-center py-12">
+                  <Upload className="size-16 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-muted-foreground text-sm mb-2">
+                    还没有项目卡片
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    点击右上角的"上传文件"按钮，或拖拽文件到此处
+                  </p>
+                </div>
+              )
             ) : (
               projects.map((project) => (
                 <ProjectCard
