@@ -33,8 +33,8 @@ export function ProjectDetailHeader({
   onMarkEstablished,
 }: ProjectDetailHeaderProps) {
   return (
-    <div className="px-8 pb-6 pt-2 border-b border-border/50 bg-gradient-to-r from-background via-background to-muted/20">
-      <div className="space-y-4">
+    <div className="px-8 pb-3 pt-2 bg-gradient-to-r from-background via-background to-muted/20">
+      <div className="space-y-2">
         {/* First Row: Project Name, Status Badge (view mode), and Edit Button */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">

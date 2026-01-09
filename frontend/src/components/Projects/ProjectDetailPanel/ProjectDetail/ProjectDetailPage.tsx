@@ -337,7 +337,7 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
       {/* Content: Two Columns Layout */}
       <div className="flex-1 flex gap-6 overflow-hidden px-6 pb-6">
         {/* Left: Detail Content */}
-        <div className="flex-1 min-w-0">
+        <div className="w-[60%] min-w-0">
           <ScrollArea className="h-full">
             <ProjectDetailBody
               editedProject={editedProject}
@@ -350,7 +350,7 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         </div>
 
         {/* Right: Ledger Progress */}
-        <div className="w-[500px] flex-shrink-0">
+        <div className="w-[40%] flex-shrink-0">
           <ProjectProgressLedger project={editedProject} />
         </div>
       </div>

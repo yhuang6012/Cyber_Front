@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { ProjectItem, useAppStore } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { generateAiSummary, getProjectIntakeDraft } from '@/lib/projectApi';
 import { toast } from 'sonner';
 
@@ -160,66 +159,62 @@ export function AiSummarySection({ project }: AiSummarySectionProps) {
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-4"
-    >
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5 text-foreground/80">
-          <Sparkles className="size-4 text-primary" />
-          <h3 className="font-bold text-lg tracking-wide uppercase">AI 自动摘要</h3>
+        <div className="flex items-center gap-1.5 text-foreground/80">
+          <Sparkles className="size-3 text-primary" />
+          <h3 className="font-semibold text-sm tracking-wide uppercase">AI 自动摘要</h3>
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={handleGenerate}
           disabled={isGenerating || autoPolling}
-          className="gap-2"
+          className="gap-1 h-7 text-xs px-2"
         >
           {isGenerating || autoPolling ? (
             <>
-              <Loader2 className="size-4 animate-spin" />
-              生成中...
+              <Loader2 className="size-3 animate-spin" />
+              生成中
             </>
           ) : hasAiSummary() ? (
             <>
-              <RefreshCw className="size-4" />
+              <RefreshCw className="size-3" />
               重新生成
             </>
           ) : (
             <>
-              <Sparkles className="size-4" />
-              生成摘要
+              <Sparkles className="size-3" />
+              生成
             </>
           )}
         </Button>
       </div>
       
-      <div className="pl-1">
+      <div>
         {hasAiSummary() ? (
-          <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+          <div className="p-2.5 rounded-md bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 min-h-[80px]">
+            <p className="text-xs leading-relaxed whitespace-pre-wrap">
               {getAiSummaryText()}
             </p>
           </div>
         ) : autoPolling || isGenerating ? (
-          <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
-            <div className="flex items-center justify-center gap-3 text-muted-foreground">
-              <Loader2 className="size-5 animate-spin text-primary" />
-              <p className="text-sm">
-                AI 摘要生成中，预计需要 10-30 秒...
+          <div className="p-2.5 rounded-md bg-muted/40 border border-border/50 min-h-[80px] flex items-center justify-center">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin text-primary" />
+              <p className="text-xs">
+                生成中...
               </p>
             </div>
           </div>
         ) : (
-          <div className="p-4 rounded-xl bg-muted/40 border border-border/50 border-dashed">
-            <p className="text-sm text-muted-foreground/60 italic text-center">
-              暂无 AI 摘要，点击"生成摘要"按钮生成项目摘要
+          <div className="p-2.5 rounded-md bg-muted/40 border border-border/50 border-dashed min-h-[80px] flex items-center justify-center">
+            <p className="text-xs text-muted-foreground/60 italic text-center">
+              点击"生成"按钮生成摘要
             </p>
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
