@@ -14,7 +14,6 @@ import {
   Phone,
   MapPin,
   Briefcase,
-  FileText,
   UserCircle,
   Link
 } from 'lucide-react';
