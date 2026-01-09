@@ -10,9 +10,11 @@ import { toast } from 'sonner';
 import { LEDGER_STEPS, ProjectStatus } from './ledgerTypes';
 import { useLedgerFiles } from './hooks/useLedgerFiles';
 import { useAudioTranscribeTasks } from './hooks/useAudioTranscribeTasks';
+import { useVisionTranscribeTasks } from './hooks/useVisionTranscribeTasks';
 import { LedgerStepProgress } from './LedgerStepProgress';
 import { LedgerFileTable } from './LedgerFileTable';
 import { AudioTranscribeDialog } from './AudioTranscribeDialog';
+import { VisualTranscribeDialog } from './VisualTranscribeDialog';
 
 interface ProjectProgressLedgerProps {
   project: ProjectItem;
@@ -28,6 +30,11 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
   const [transcribeDialogOpen, setTranscribeDialogOpen] = useState(false);
   const [transcribeTargetFile, setTranscribeTargetFile] = useState<{ id: string; name: string } | null>(null);
   const [isSubmittingTranscribe, setIsSubmittingTranscribe] = useState(false);
+
+  // 视觉转写对话框状态
+  const [visionDialogOpen, setVisionDialogOpen] = useState(false);
+  const [visionTargetFile, setVisionTargetFile] = useState<{ id: string; name: string } | null>(null);
+  const [isSubmittingVision, setIsSubmittingVision] = useState(false);
 
   // 文件操作 hook
   const {
@@ -53,6 +60,14 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
       void refreshFiles({ status: statusToUse });
     },
     pollIntervalMs: 5000,
+  });
+
+  // 视觉转写 hook
+  const visionTasks = useVisionTranscribeTasks({
+    onAnyTaskSucceeded: () => {
+      const statusToUse = hasUserSelectedStatus ? selectedStatus : 'all';
+      void refreshFiles({ status: statusToUse });
+    },
   });
 
   // 当项目状态变化时，重置筛选规则
@@ -136,6 +151,52 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
     }
   }, [isSubmittingTranscribe]);
 
+  // 点击视觉转写按钮 -> 打开对话框
+  const handleStartVisionTranscribe = useCallback((file: { id: string; name: string }) => {
+    setVisionTargetFile(file);
+    setVisionDialogOpen(true);
+  }, []);
+
+  // 对话框确认后提交视觉转写任务
+  const handleConfirmVisionTranscribe = useCallback(async (customPrompt: string) => {
+    if (!visionTargetFile) return;
+
+    setIsSubmittingVision(true);
+    try {
+      const taskId = await visionTasks.startTaskForFile({
+        fileId: visionTargetFile.id,
+        fileName: visionTargetFile.name,
+        customPrompt: customPrompt || undefined,
+      });
+      console.log('[ProjectProgressLedger][vision] task submitted ->', {
+        fileId: visionTargetFile.id,
+        taskId,
+        fileName: visionTargetFile.name,
+        customPrompt,
+      });
+      toast.success(
+        <div className="text-sm text-emerald-600 whitespace-nowrap">已提交视觉转写任务</div>,
+        { duration: 3000 },
+      );
+      setVisionDialogOpen(false);
+      setVisionTargetFile(null);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '提交视觉转写任务失败';
+      console.error('[ProjectProgressLedger][vision] submit error', err);
+      toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });
+    } finally {
+      setIsSubmittingVision(false);
+    }
+  }, [visionTasks, visionTargetFile]);
+
+  // 取消视觉转写对话框
+  const handleCancelVisionTranscribe = useCallback(() => {
+    if (!isSubmittingVision) {
+      setVisionDialogOpen(false);
+      setVisionTargetFile(null);
+    }
+  }, [isSubmittingVision]);
+
   // 全局"空白点击"重置筛选
   useEffect(() => {
     if (!hasUserSelectedStatus) return;
@@ -163,7 +224,7 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
   }, [hasUserSelectedStatus, refreshFiles]);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden min-w-0">
       {/* 步骤进度条 */}
       <LedgerStepProgress
         projectStatus={project.status as ProjectStatus}
@@ -171,7 +232,7 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
       />
 
       {/* 文件列表区域 */}
-      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
         {/* 搜索和操作栏 */}
         <div className="px-8 py-4 border-b border-border/50 flex items-center justify-between gap-4 flex-shrink-0">
           <div className="flex items-center gap-2 flex-1">
@@ -231,10 +292,12 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
               downloadingFileIds={downloadingFileIds}
               previewingFileIds={previewingFileIds}
               audioTasks={audioTasks.tasks}
+              visionTasks={visionTasks.tasks}
               onDelete={(fileId) => handleDeleteFile(fileId, getStatusToUse())}
               onDownload={handleDownloadFile}
               onPreview={handlePreviewFile}
               onStartTranscribe={handleStartTranscribe}
+              onStartVisionTranscribe={handleStartVisionTranscribe}
               isUploading={isUploading}
             />
           </div>
@@ -248,6 +311,15 @@ export function ProjectProgressLedger({ project }: ProjectProgressLedgerProps) {
         onCancel={handleCancelTranscribe}
         onConfirm={handleConfirmTranscribe}
         isSubmitting={isSubmittingTranscribe}
+      />
+
+      {/* 视觉转写对话框 */}
+      <VisualTranscribeDialog
+        open={visionDialogOpen}
+        fileName={visionTargetFile?.name ?? ''}
+        onCancel={handleCancelVisionTranscribe}
+        onConfirm={handleConfirmVisionTranscribe}
+        isSubmitting={isSubmittingVision}
       />
     </div>
   );

@@ -25,35 +25,11 @@ export function NewsPanel() {
   // Helpers for combined mode keyword extraction and matching
   const extractKeywords = (q: string): string[] => {
     let text = (q || '').toLowerCase().trim();
-    const stopPhrases = [
-      '想了解一下', '了解一下', '想了解', '介绍一下', '介绍', '是什么', '科普', '入门', '关于',
-      'learn about', 'what is', 'overview', 'about'
-    ];
-    for (const phrase of stopPhrases) {
-      if (phrase) {
-        text = text.split(phrase).join('');
-      }
-    }
-    text = text.trim();
     if (!text) return [];
-    const tokens = text.includes(' ') ? text.split(/\s+/).filter(Boolean) : [text];
-    const synonymMap: Record<string, string[]> = {
-      '脑机接口': ['bci', 'brain-computer interface', '脑机', '神经接口', '神经技术', 'neurotechnology', 'neurotech'],
-      'bci': ['脑机接口', 'brain-computer interface', '脑机', '神经接口', 'neurotechnology', 'neurotech'],
-      'brain-computer interface': ['脑机接口', 'bci', 'neurotechnology', 'neurotech'],
-      'neurotechnology': ['神经技术', '脑机接口', 'neurotech', 'bci'],
-      'neurotech': ['neurotechnology', '脑机接口', 'bci'],
-    };
-    const expanded = new Set<string>();
-    for (const t of tokens) {
-      expanded.add(t);
-      Object.keys(synonymMap).forEach(key => {
-        if (t.includes(key)) {
-          synonymMap[key].forEach(s => expanded.add(s));
-        }
-      });
-    }
-    return Array.from(expanded);
+    
+    // 简化逻辑：仅按空格分词，移除硬编码的同义词匹配（原本用于匹配 mock 数据）
+    const tokens = text.split(/\s+/).filter(Boolean);
+    return tokens;
   };
 
   const includesAny = (haystack: string, keys: string[]) => {

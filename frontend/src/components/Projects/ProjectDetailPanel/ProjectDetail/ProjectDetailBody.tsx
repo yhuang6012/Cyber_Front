@@ -61,25 +61,7 @@ export function ProjectDetailBody({
   onKeywordsChange,
 }: ProjectDetailBodyProps) {
   return (
-    <div className="px-8 py-8 space-y-10">
-      {/* Manager Note */}
-      <Section icon={FileText} title="投资经理笔记">
-        {isEditing ? (
-          <Textarea
-            value={editedProject.description || ''}
-            onChange={(e) => onFieldChange('description', e.target.value)}
-            className="min-h-[120px] resize-none"
-            placeholder="记录受理判断、尽调要点、沟通反馈等..."
-          />
-        ) : (
-          <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {editedProject.description?.trim() ? editedProject.description : <span className="text-muted-foreground/60 italic">暂无笔记</span>}
-            </p>
-          </div>
-        )}
-      </Section>
-
+    <div className="px-6 py-6 space-y-8">
       {/* Project Role */}
       <Section icon={Briefcase} title="项目角色">
         {isEditing ? (

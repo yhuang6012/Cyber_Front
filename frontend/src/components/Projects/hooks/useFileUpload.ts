@@ -5,6 +5,7 @@ import {
   openPdfTasksPolling,
   getProjectIntakeDraft,
   PdfTaskStatus,
+  generateAiSummary,
 } from '@/lib/projectApi';
 
 export function useFileUpload() {
@@ -17,8 +18,15 @@ export function useFileUpload() {
   // Polling connection ref for cleanup
   const pollingRef = useRef<{ close: () => void } | null>(null);
 
-  // Track pending tasks: taskId -> { uiTaskId, fileName, fileSize, projectId }
-  const pendingTasksRef = useRef<Map<string, { uiTaskId: string; fileName: string; fileSize: number; projectId: string }>>(new Map());
+  // Track pending tasks: taskId -> { uiTaskId, fileName, fileSize, projectId, fileId, fileType }
+  const pendingTasksRef = useRef<Map<string, { 
+    uiTaskId: string; 
+    fileName: string; 
+    fileSize: number; 
+    projectId: string;
+    fileId: string;
+    fileType: string;
+  }>>(new Map());
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -49,37 +57,57 @@ export function useFileUpload() {
     }
 
     if (normalized === 'completed') {
-      // Parsing completed - fetch project data via GET /api/projects/{project_id}
+      // Parsing completed - fetch project data and create project card
       updateUploadTask(uiTaskId, { status: 'parsing', parseProgress: 80 });
 
       try {
         // 使用 project_id（来自 bps 上传接口返回）获取项目提取的数据
         const extractedInfo = await getProjectIntakeDraft(projectId);
         
-        // Map extracted info to ProjectItem fields (根据实际返回数据结构)
-        const projectUpdates: Partial<ProjectItem> = {
+        // 创建项目卡片（只在解析成功时创建）
+        const newProject: ProjectItem = {
+          id: projectId,
           name: extractedInfo.project_name || fileName.replace(/\.[^.]+$/, ''),
           description: extractedInfo.description,
+          aiSummary: extractedInfo.ai_summary,
+          status: 'received',
+          tags: [],
+          sourceFileName: fileName,
+          createdAt: new Date().toISOString(),
+          updatedAt: extractedInfo.updated_at,
           companyName: extractedInfo.company_name,
           companyAddress: extractedInfo.company_address,
           industry: extractedInfo.industry,
           projectContact: extractedInfo.project_contact,
           contactInfo: extractedInfo.contact_info,
           uploader: extractedInfo.uploaded_by_username,
-          coreTeam: extractedInfo.core_team, // 数组类型
+          coreTeam: extractedInfo.core_team,
           coreProduct: extractedInfo.core_product,
           coreTechnology: extractedInfo.core_technology,
           competitionAnalysis: extractedInfo.competition_analysis,
           marketSize: extractedInfo.market_size,
-          financialStatus: extractedInfo.financial_status, // { current, future }
-          financingHistory: extractedInfo.financing_history, // { completed_rounds, current_funding_need, funding_use }
+          financialStatus: extractedInfo.financial_status,
+          financingHistory: extractedInfo.financing_history,
           keywords: extractedInfo.keywords || [],
-          updatedAt: extractedInfo.updated_at,
           projectSource: extractedInfo.project_source,
         };
 
-        // Update the project with extracted info
-        updateProject(projectId, projectUpdates);
+        // Add project and file to store
+        useAppStore.setState(state => ({
+          projects: [newProject, ...state.projects],
+          uploadedFiles: [
+            {
+              id: taskInfo.fileId,
+              name: fileName,
+              size: taskInfo.fileSize,
+              type: taskInfo.fileType,
+              createdAt: new Date().toISOString(),
+            },
+            ...state.uploadedFiles,
+          ],
+        }));
+
+        console.log('[useFileUpload] ✅ 项目卡片创建成功:', projectId, fileName);
 
         // Mark task as completed
         updateUploadTask(uiTaskId, {
@@ -88,13 +116,18 @@ export function useFileUpload() {
           completedAt: new Date().toISOString(),
           projectId,
         });
+
+        // 自动触发 AI 摘要生成
+        console.log('[useFileUpload] 🤖 自动触发 AI 摘要生成:', projectId);
+        generateAiSummary(projectId).catch((err) => {
+          console.warn('[useFileUpload] ⚠️ AI 摘要生成失败（不影响项目创建）:', err);
+        });
       } catch (err) {
-        console.error('[SSE] Failed to fetch project data:', err);
+        console.error('[useFileUpload] ❌ 获取项目数据失败:', err);
+        // 解析失败，不创建项目卡片，只更新任务状态
         updateUploadTask(uiTaskId, {
-          status: 'completed',
-          parseProgress: 100,
-          completedAt: new Date().toISOString(),
-          projectId,
+          status: 'error',
+          error: '获取项目数据失败',
         });
       }
 
@@ -196,34 +229,11 @@ export function useFileUpload() {
           continue;
         }
 
-        // Create a pending project
+        // 准备项目 ID 和文件信息，但不立即创建项目卡片
         const projectId = String(result.project_id || crypto.randomUUID());
-        const newProject: ProjectItem = {
-          id: projectId,
-          name: file.name.replace(/\.[^.]+$/, ''),
-          description: undefined,
-          status: 'received',
-          tags: [],
-          sourceFileName: file.name,
-          createdAt: new Date().toISOString(),
-        };
+        const fileId = String(result.file_id || crypto.randomUUID());
 
-        // Add to store
-        useAppStore.setState(state => ({
-          projects: [newProject, ...state.projects],
-          uploadedFiles: [
-            {
-              id: String(result.file_id || crypto.randomUUID()),
-              name: file.name,
-              size: result.size || file.size,
-              type: file.type,
-              createdAt: new Date().toISOString(),
-            },
-            ...state.uploadedFiles,
-          ],
-        }));
-
-        // If we have a pdf_task_id, track it for polling
+        // If we have a pdf_task_id, track it for polling (项目卡片将在解析完成后创建)
         if (result.pdf_task_id) {
           const pdfTaskId = String(result.pdf_task_id);
           pdfTaskIds.push(pdfTaskId);
@@ -232,12 +242,23 @@ export function useFileUpload() {
             fileName: file.name,
             fileSize: result.size || file.size,
             projectId,
+            fileId,
+            fileType: file.type,
           });
 
-          // Transition to parsing state
-          updateUploadTask(uiTaskId, { status: 'parsing', parseProgress: 0 });
+          // Transition to parsing state and store taskId for cancellation
+          updateUploadTask(uiTaskId, { 
+            status: 'parsing', 
+            parseProgress: 0,
+            taskId: pdfTaskId,
+            projectId, // 存储 projectId 用于后续引用
+          });
+          
+          console.log('[useFileUpload] 📝 文件上传成功，等待解析完成后创建项目卡片:', file.name);
         } else {
-          // No pdf_task_id means upload only, mark as completed
+          // No pdf_task_id means upload only (no parsing needed)
+          // 对于不需要解析的文件，可以立即创建项目或者标记为完成
+          console.log('[useFileUpload] ⚠️  文件上传成功但无需解析:', file.name);
           updateUploadTask(uiTaskId, {
             status: 'completed',
             parseProgress: 100,

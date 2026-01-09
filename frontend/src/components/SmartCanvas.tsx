@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { NotebookPen, SquarePen, Binoculars } from 'lucide-react';
+import { NotebookPen, SquarePen } from 'lucide-react';
 import { Button } from './ui/button';
 
 export function SmartCanvas() {
@@ -38,8 +38,8 @@ export function SmartCanvas() {
 
   return (
     <div className="h-full border-l border-border flex flex-col">
-      <div className="px-3 pt-1 pb-2 text-sm font-medium flex items-center justify-between">
-        <span>智选面板</span>
+      <div className="px-3 pt-1 pb-2 text-base font-medium flex items-center justify-between">
+        <span>智选</span>
         <div className="flex items-center gap-2">
           <Button className="px-2 py-1 rounded hover:bg-accent" 
             variant="ghost"
@@ -50,7 +50,7 @@ export function SmartCanvas() {
             <SquarePen className="size-4" />
             生成笔记
           </Button>
-          <Button className="px-2 py-1 rounded hover:bg-accent" 
+          {/* <Button className="px-2 py-1 rounded hover:bg-accent" 
             variant="ghost"
             size="sm"
             onClick={() => useAppStore.getState().sortSmartNotes()}
@@ -58,7 +58,7 @@ export function SmartCanvas() {
           >
             <Binoculars className="size-4" />
             深度投研
-          </Button>
+          </Button> */}
         </div>
       </div>
       <div className="flex-1 overflow-auto p-3 space-y-2 relative" onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}>

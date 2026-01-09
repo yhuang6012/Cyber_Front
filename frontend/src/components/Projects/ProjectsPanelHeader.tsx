@@ -39,7 +39,7 @@ export function ProjectsPanelHeader({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={viewMode === 'cards' ? '搜索项目名称、公司、行业、关键词...' : '搜索文件名...'}
-          className="pl-9 h-9"
+          className="pl-9 h-9 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 shadow-[0_6px_16px_-12px_rgba(0,0,0,0.20)]"
           autoComplete="off"
           data-1p-ignore="true"
           data-lpignore="true"

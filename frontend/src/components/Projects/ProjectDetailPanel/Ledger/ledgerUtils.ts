@@ -20,6 +20,22 @@ export function isAudioFileName(name: string): boolean {
 }
 
 /**
+ * 判断文件名是否为视觉文件（图片、视频或 PDF）
+ */
+export function isVisualFileName(name: string): boolean {
+  const lower = (name || '').toLowerCase();
+  const visualExtensions = [
+    // 视频
+    '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
+    // 图片
+    '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.svg', '.heic',
+    // PDF (视觉分析支持)
+    '.pdf',
+  ];
+  return visualExtensions.some(ext => lower.endsWith(ext));
+}
+
+/**
  * 判断文件是否支持预览（PDF、Office 文档等）
  * 支持格式：
  * - 文字文档（Word）：doc、dot、wps、wpt、docx、dotx、docm、dotm、rtf

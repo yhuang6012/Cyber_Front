@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 /* Prevent any scrolling on the main document */
 html, body {
   height: 100vh;
@@ -113,6 +111,86 @@ html, body {
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+  }
+
+  /* Ant Design Steps Navigation 自定义样式 - Ledger */
+  .ledger-steps-navigation .ant-steps-item {
+    cursor: pointer !important;
+  }
+
+  .ledger-steps-navigation .ant-steps-item-container {
+    cursor: pointer !important;
+  }
+
+  /* 统一文字颜色为黑色 */
+  .ledger-steps-navigation .ant-steps-item-title {
+    color: rgb(0 0 0) !important;
+  }
+
+  /* 接收阶段 - 琥珀色底部条 */
+  .ledger-steps-navigation .ledger-step-received.ledger-step-active .ant-steps-item-container::after,
+  .ledger-steps-navigation .ledger-step-received.ledger-step-completed .ant-steps-item-container::after {
+    background-color: rgb(251 191 36) !important; /* amber-400 */
+  }
+
+  .ledger-steps-navigation .ledger-step-received.ledger-step-active:hover .ant-steps-item-container::after,
+  .ledger-steps-navigation .ledger-step-received.ledger-step-completed:hover .ant-steps-item-container::after {
+    background-color: rgb(245 158 11) !important; /* amber-500 */
+  }
+
+  /* 已受理阶段 - 绿色底部条 */
+  .ledger-steps-navigation .ledger-step-accepted.ledger-step-active .ant-steps-item-container::after,
+  .ledger-steps-navigation .ledger-step-accepted.ledger-step-completed .ant-steps-item-container::after {
+    background-color: rgb(52 211 153) !important; /* emerald-400 */
+  }
+
+  .ledger-steps-navigation .ledger-step-accepted.ledger-step-active:hover .ant-steps-item-container::after,
+  .ledger-steps-navigation .ledger-step-accepted.ledger-step-completed:hover .ant-steps-item-container::after {
+    background-color: rgb(16 185 129) !important; /* emerald-500 */
+  }
+
+  /* 已立项阶段 - 蓝色底部条 */
+  .ledger-steps-navigation .ledger-step-initiated.ledger-step-active .ant-steps-item-container::after,
+  .ledger-steps-navigation .ledger-step-initiated.ledger-step-completed .ant-steps-item-container::after {
+    background-color: rgb(96 165 250) !important; /* blue-400 */
+  }
+
+  .ledger-steps-navigation .ledger-step-initiated.ledger-step-active:hover .ant-steps-item-container::after,
+  .ledger-steps-navigation .ledger-step-initiated.ledger-step-completed:hover .ant-steps-item-container::after {
+    background-color: rgb(59 130 246) !important; /* blue-500 */
+  }
+
+  /* 不受理状态 - 红色底部条 */
+  .ledger-steps-navigation .ledger-step-rejected .ant-steps-item-container::after {
+    background-color: rgb(248 113 113) !important; /* red-400 */
+  }
+
+  .ledger-steps-navigation .ledger-step-rejected:hover .ant-steps-item-container::after {
+    background-color: rgb(239 68 68) !important; /* red-500 */
+  }
+
+  /* 待处理状态 - 灰色底部条 */
+  .ledger-steps-navigation .ledger-step-pending .ant-steps-item-container::after {
+    background-color: rgb(229 231 235) !important; /* gray-200 */
+  }
+
+  .ledger-steps-navigation .ledger-step-pending:hover .ant-steps-item-container::after {
+    background-color: rgb(229 231 235) !important; /* gray-200 不变 */
+  }
+
+  /* 禁用状态样式 */
+  .ledger-steps-navigation .ant-steps-item-disabled {
+    cursor: not-allowed !important;
+    opacity: 0.5;
+  }
+
+  .ledger-steps-navigation .ant-steps-item-disabled .ant-steps-item-container {
+    cursor: not-allowed !important;
+  }
+
+  .ledger-steps-navigation .ant-steps-item-disabled .ant-steps-item-title {
+    cursor: not-allowed !important;
+    color: rgb(156 163 175) !important; /* gray-400 */
   }
 
   .dark {

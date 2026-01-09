@@ -19,8 +19,11 @@ import {
   Loader2,
   Trash2,
   X,
+  StopCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { cancelPdfTask } from '@/lib/projectApi';
+import { toast } from 'sonner';
 
 interface EnhancedUploadDialogProps {
   open: boolean;
@@ -40,7 +43,32 @@ export function EnhancedUploadDialog({
     uploadTasks,
     removeUploadTask,
     clearCompletedTasks,
+    updateUploadTask,
   } = useAppStore();
+
+  // 取消 PDF 任务
+  const handleCancelTask = async (task: any) => {
+    if (!task.taskId) {
+      console.warn('[CreateProject] 无法取消任务：缺少 taskId', task);
+      return;
+    }
+
+    try {
+      console.log('[CreateProject] 🛑 尝试取消任务:', task.taskId, task.fileName);
+      await cancelPdfTask(task.taskId);
+      
+      // 更新任务状态为已取消
+      updateUploadTask(task.id, {
+        status: 'error',
+        error: '任务已取消',
+      });
+      
+      toast.success(`已取消任务: ${task.fileName}`);
+    } catch (error: any) {
+      console.error('[CreateProject] ❌ 取消任务失败:', error);
+      toast.error(`取消任务失败: ${error.message}`);
+    }
+  };
 
   // === 上传入口 ===
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -184,7 +212,7 @@ export function EnhancedUploadDialog({
                   {isDragging ? '释放文件开始上传 BP' : '拖拽 BP 文件到此处'}
                 </h3>
                 <p className="text-xs text-muted-foreground mb-4">
-                  支持拖拽 BP 文件 / 文件夹，或点击下方按钮选择文件创建项目
+                  支持拖拽 BP 文件，或点击下方按钮选择文件创建项目
                 </p>
 
                 <input
@@ -224,7 +252,7 @@ export function EnhancedUploadDialog({
               </div>
 
               <ScrollArea className="flex-1 pr-2">
-                <div className="space-y-3">
+                <div className="space-y-1">
                   {uploadTasks.length === 0 ? (
                     <div className="text-center text-xs text-muted-foreground py-6">
                       暂无上传任务。上传文件后，这里会显示任务进度。
@@ -234,7 +262,7 @@ export function EnhancedUploadDialog({
                       <div
                         key={task.id}
                         className={cn(
-                          'rounded-full p-3 space-y-2',
+                          'rounded-2xl px-3 py-2 space-y-1',
                           task.status === 'error'
                             ? 'bg-red-50/50 dark:bg-red-950/20'
                             : 'bg-gray-100 dark:bg-gray-800/50',
@@ -242,7 +270,7 @@ export function EnhancedUploadDialog({
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="ml-2 flex items-center">
+                            <div className="flex items-center">
                               {getTaskStatusIcon(task)}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -260,12 +288,27 @@ export function EnhancedUploadDialog({
                               </div>
                             </div>
                           </div>
+                          {/* 进行中的任务显示取消按钮 */}
+                          {(task.status === 'uploading' || task.status === 'parsing') && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 cursor-pointer text-orange-600 hover:text-orange-700"
+                              onClick={() => handleCancelTask(task)}
+                              title="取消任务"
+                            >
+                              <StopCircle className="size-4" />
+                            </Button>
+                          )}
+                          
+                          {/* 已完成或失败的任务显示移除按钮 */}
                           {(task.status === 'completed' || task.status === 'error') && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 mr-1 cursor-pointer"
+                              className="h-7 w-7 cursor-pointer"
                               onClick={() => removeUploadTask(task.id)}
+                              title="移除任务"
                             >
                               <XCircle className="size-4" />
                             </Button>
@@ -273,25 +316,23 @@ export function EnhancedUploadDialog({
                         </div>
 
                         {task.status === 'uploading' && (
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground pl-6">上传进度</span>
-                              <span className="font-medium pr-6">{task.uploadProgress}%</span>
-                            </div>
-                            <div className="px-6">
-                              <Progress value={task.uploadProgress} className="h-1.5" />
+                          <div className="flex items-center">
+                            <Progress value={task.uploadProgress} className="h-1.5 flex-1" />
+                            <div className="w-7 flex items-center justify-center flex-shrink-0">
+                              <span className="text-[11px] font-medium text-muted-foreground tabular-nums ml-1">
+                                {task.uploadProgress}%
+                              </span>
                             </div>
                           </div>
                         )}
 
                         {task.status === 'parsing' && (
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-muted-foreground pl-6">解析进度</span>
-                              <span className="font-medium pr-6">{task.parseProgress}%</span>
-                            </div>
-                            <div className="px-6">
-                              <Progress value={task.parseProgress} className="h-1.5" />
+                          <div className="flex items-center">
+                            <Progress value={task.parseProgress} className="h-1.5 flex-1" />
+                            <div className="w-7 flex items-center justify-center flex-shrink-0">
+                              <span className="text-[11px] font-medium text-muted-foreground tabular-nums ml-1">
+                                {task.parseProgress}%
+                              </span>
                             </div>
                           </div>
                         )}

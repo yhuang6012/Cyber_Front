@@ -2,7 +2,7 @@ import { ProjectItem } from '@/store/useAppStore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { ProjectDetailBody } from './ProjectDetailBody';
+import { ProjectDetailBody } from '../ProjectDetail/ProjectDetailBody';
 
 interface AcceptanceDialogProps {
   open: boolean;

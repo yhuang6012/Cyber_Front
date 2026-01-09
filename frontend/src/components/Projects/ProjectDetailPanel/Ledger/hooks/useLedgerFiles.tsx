@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { getProjectFiles, deleteProjectFile, getProjectFileDownloadUrl, getProjectFilePreviewUrl, uploadProjectFiles } from '@/lib/projectApi';
 import { toast } from 'sonner';
 import { LedgerFile } from '../ledgerTypes';
+import { useAppStore } from '@/store/useAppStore';
 
 interface UseLedgerFilesOptions {
   projectId: string;
@@ -76,13 +77,21 @@ export function useLedgerFiles({ projectId }: UseLedgerFilesOptions) {
     }
   }, [projectId]);
 
-  // 预览文件
+  // 预览文件 - 发送到 Chat 面板
   const handlePreviewFile = useCallback(async (file: { id: string; name: string }) => {
     setPreviewingFileIds(prev => new Set(prev).add(file.id));
     try {
-      const { preview_url } = await getProjectFilePreviewUrl(projectId, file.id);
-      // 在新标签页打开预览
-      window.open(preview_url, '_blank', 'noopener,noreferrer');
+      const data = await getProjectFilePreviewUrl(projectId, file.id);
+      // 添加预览消息到 Chat
+      useAppStore.getState().addFilePreviewMessage({
+        weboffice_url: data.weboffice_url,
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        file_name: data.file_name,
+        file_id: data.file_id,
+        expires_in_seconds: data.expires_in_seconds,
+      });
+      toast.success(<div className="text-sm text-emerald-600 whitespace-nowrap">已在对话面板打开预览</div>, { duration: 2000 });
     } catch (e) {
       const msg = e instanceof Error ? e.message : '获取预览链接失败';
       toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });

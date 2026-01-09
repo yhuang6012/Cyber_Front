@@ -18,7 +18,6 @@ interface ProjectDetailHeaderProps {
   onStartAcceptance: () => void;
   onMarkEstablished: () => void;
   onClose: () => void;
-  activeTab: 'details' | 'progress';
 }
 
 export function ProjectDetailHeader({
@@ -32,7 +31,6 @@ export function ProjectDetailHeader({
   onMarkNotAccepted,
   onStartAcceptance,
   onMarkEstablished,
-  activeTab,
 }: ProjectDetailHeaderProps) {
   return (
     <div className="px-8 pb-6 pt-2 border-b border-border/50 bg-gradient-to-r from-background via-background to-muted/20">
@@ -99,53 +97,47 @@ export function ProjectDetailHeader({
                   exit={{ opacity: 0, scale: 0.9 }}
                   className="flex items-center gap-2"
                 >
-                  {/* 详情页：显示编辑按钮 */}
-                  {activeTab === 'details' && (
+                  {/* 编辑按钮 */}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onStartEdit}
+                    className="cursor-pointer"
+                  >
+                    <Pencil className="size-4 mr-1" />
+                    编辑
+                  </Button>
+                  
+                  {/* 状态操作按钮 */}
+                  {editedProject.status === 'received' && (
+                    <>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={onMarkNotAccepted}
+                        className="cursor-pointer"
+                      >
+                        不受理
+                      </Button>
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        onClick={onStartAcceptance}
+                        className="cursor-pointer"
+                      >
+                        受理
+                      </Button>
+                    </>
+                  )}
+                  {editedProject.status === 'accepted' && (
                     <Button 
-                      variant="ghost" 
+                      variant="default" 
                       size="sm" 
-                      onClick={onStartEdit}
+                      onClick={onMarkEstablished}
                       className="cursor-pointer"
                     >
-                      <Pencil className="size-4 mr-1" />
-                      编辑
+                      立项
                     </Button>
-                  )}
-                  
-                  {/* 进度台账：显示状态操作按钮 */}
-                  {activeTab === 'progress' && (
-                    <>
-                      {editedProject.status === 'received' && (
-                        <>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={onMarkNotAccepted}
-                            className="cursor-pointer"
-                          >
-                            不受理
-                          </Button>
-                          <Button 
-                            variant="default" 
-                            size="sm" 
-                            onClick={onStartAcceptance}
-                            className="cursor-pointer"
-                          >
-                            受理
-                          </Button>
-                        </>
-                      )}
-                      {editedProject.status === 'accepted' && (
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          onClick={onMarkEstablished}
-                          className="cursor-pointer"
-                        >
-                          立项
-                        </Button>
-                      )}
-                    </>
                   )}
                   
                 </motion.div>

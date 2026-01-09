@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { ProjectItem, useAppStore } from '@/store/useAppStore';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';
 import { ProjectDetailHeader } from './ProjectDetailHeader';
 import { ProjectDetailBody } from './ProjectDetailBody';
-import { ProjectProgressLedger } from './ProjectProgressLedger';
-import { ProjectStatusDialog } from './ProjectStatusDialog';
+import { ProjectDetailTopSection } from './ProjectDetailTopSection';
+import { ProjectProgressLedger } from '../Ledger/ProjectProgressLedger';
+import { ProjectStatusDialog } from '../Ledger/ProjectStatusDialog';
 import { getStatusDisplay, getConfirmMessage, normalizeKeywords } from './projectDetailUtils';
-import { AcceptanceDialog } from './AcceptanceDialog';
+import { AcceptanceDialog } from '../Ledger/AcceptanceDialog';
 import { updateProject as updateProjectApi, initiateProject, getProjectIntakeDraft, mapDetailToProjectItem } from '@/lib/projectApi';
 
 interface ProjectDetailPageProps {
@@ -18,7 +18,7 @@ interface ProjectDetailPageProps {
 }
 
 export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
-  const { setSelectedProjectId, projectDetailTab, setProjectDetailTab } = useAppStore();
+  const { setSelectedProjectId } = useAppStore();
   const [editedProject, setEditedProject] = useState<ProjectItem>(project);
   const [keywords, setKeywords] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
@@ -43,9 +43,7 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
     setIsEditing(false);
     setPendingStatusUpdate(null);
 
-    // Only reset tab when switching to a different project
     if (isProjectChanged) {
-      setProjectDetailTab('details');
       previousProjectIdRef.current = project.id;
     }
   }, [project]);
@@ -314,16 +312,6 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <Tabs value={projectDetailTab} onValueChange={(v) => setProjectDetailTab(v as 'details' | 'progress')} className="flex-shrink-0">
-        <div className="px-7 pt-2 pb-4">
-          <TabsList>
-            <TabsTrigger value="details">详情页</TabsTrigger>
-            <TabsTrigger value="progress">进度台账</TabsTrigger>
-          </TabsList>
-        </div>
-      </Tabs>
-
       {/* Header */}
       <ProjectDetailHeader
         editedProject={editedProject}
@@ -337,13 +325,20 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         onStartAcceptance={handleStartAcceptance}
         onMarkEstablished={handleMarkEstablished}
         onClose={handleBack}
-        activeTab={projectDetailTab}
       />
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {projectDetailTab === 'details' ? (
-          <ScrollArea className="flex-1">
+      {/* Top Section: AI Summary + Manager Notes */}
+      <ProjectDetailTopSection
+        editedProject={editedProject}
+        isEditing={isEditing}
+        onFieldChange={handleChange}
+      />
+
+      {/* Content: Two Columns Layout */}
+      <div className="flex-1 flex gap-6 overflow-hidden px-6 pb-6">
+        {/* Left: Detail Content */}
+        <div className="flex-1 min-w-0">
+          <ScrollArea className="h-full">
             <ProjectDetailBody
               editedProject={editedProject}
               isEditing={isEditing}
@@ -352,9 +347,12 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
               onKeywordsChange={setKeywords}
             />
           </ScrollArea>
-        ) : (
+        </div>
+
+        {/* Right: Ledger Progress */}
+        <div className="w-[500px] flex-shrink-0">
           <ProjectProgressLedger project={editedProject} />
-        )}
+        </div>
       </div>
 
       {/* Confirm dialog for status changes */}

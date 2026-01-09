@@ -87,15 +87,15 @@ export function ProjectsPanelContent({
                 </div>
               ) : (
                 // 无项目
-                <div className="text-center py-12">
-                  <Upload className="size-16 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-muted-foreground text-sm mb-2">
-                    还没有项目卡片
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    点击右上角的"上传文件"按钮，或拖拽文件到此处
-                  </p>
-                </div>
+              <div className="text-center py-12">
+                <Upload className="size-16 mx-auto mb-4 text-muted-foreground/50" />
+                <p className="text-muted-foreground text-sm mb-2">
+                  还没有项目卡片
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  点击右上角的"上传文件"按钮，或拖拽文件到此处
+                </p>
+              </div>
               )
             ) : (
               projects.map((project) => (

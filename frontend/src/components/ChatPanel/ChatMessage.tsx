@@ -7,6 +7,7 @@ import { User, ThumbsUp, ThumbsDown, Share2, MoreHorizontal, Sparkles } from 'lu
 import { cn } from "@/lib/utils";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ChatFilePreview } from './ChatFilePreview';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -55,20 +56,20 @@ export function ChatMessage({ message }: ChatMessageProps) {
         duration: 0.3,
         ease: "easeOut"
       }}
-      className={`flex gap-3 ${message.isUser ? 'flex-row-reverse' : 'flex-row'}`}
+      className={`flex gap-3 w-full min-w-0 ${message.isUser ? 'flex-row-reverse' : 'flex-row'}`}
     >
-      <Avatar className="w-8 h-8 flex-shrink-0">
-        <AvatarFallback className={message.isUser ? 'bg-primary text-primary-foreground' : 'bg-green-700 text-white'}>
+      <Avatar className={cn("w-8 h-8 flex-shrink-0", message.isUser ? "mr-4" : "ml-4")}>
+        <AvatarFallback className={message.isUser ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground border border-border'}>
           {message.isUser ? <User className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
         </AvatarFallback>
       </Avatar>
       
-      <div className={cn(`flex flex-col w-full ${message.isUser ? 'items-end' : 'items-start'} pt-1`)}>
+      <div className={cn(`flex flex-col min-w-0 ${message.isUser ? 'items-end w-full' : 'items-start w-full'}`)}>
         {message.isUser ? (
           // User message
           <>
-            <div className="inline-flex max-w-[80%] bg-gray-50 text-primary rounded-lg px-4 py-3">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words min-w-0">
+            <div className="inline-flex max-w-[80%] bg-gray-50 text-primary rounded-lg px-4 py-3 break-words">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                 {message.content}
               </p>
             </div>
@@ -76,11 +77,20 @@ export function ChatMessage({ message }: ChatMessageProps) {
               {format(new Date(message.timestamp), 'HH:mm')}
             </span>
           </>
+        ) : message.type === 'file-preview' && message.filePreview ? (
+          // File preview message
+          <div className="w-full space-y-3">
+            <ChatFilePreview filePreview={message.filePreview} />
+            {/* Timestamp */}
+            <span className="text-xs text-muted-foreground px-2">
+              {format(new Date(message.timestamp), 'HH:mm')}
+            </span>
+          </div>
         ) : (
           // AI message - markdown
-          <div className="w-full space-y-3" draggable onDragStart={handleDragStart}>
+          <div className="w-full space-y-3 min-w-0" draggable onDragStart={handleDragStart}>
             <div className="inline-flex max-w-[95%] bg-gray-50 rounded-lg px-4 py-3" title="拖拽到右侧智选以保存此回复">
-              <div className="max-w-none text-sm leading-relaxed markdown-body">
+              <div className="max-w-full min-w-0 text-sm leading-relaxed markdown-body">
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -103,8 +113,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       <h6 className="text-xs md:text-sm font-semibold mt-2 mb-1 tracking-wide uppercase text-muted-foreground" {...props} />
                     ),
                     table: ({ node, ...props }) => (
-                      <div className="w-full overflow-x-auto my-2">
-                        <table className="w-full border-collapse table-auto text-sm" {...props} />
+                      <div className="w-full overflow-x-auto my-2 max-w-full">
+                        <table className="min-w-full border-collapse table-auto text-sm" {...props} />
                       </div>
                     ),
                     thead: ({ node, ...props }) => (
@@ -126,14 +136,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       <ol className="list-decimal pl-5 my-2 space-y-1" {...props} />
                     ),
                     p: ({ node, ...props }) => (
-                      <p className="my-2" {...props} />
+                      <p className="my-2 break-words" {...props} />
                     ),
                     code: (props) => {
                       const { inline, className, children, ...rest } = props as any;
                       return inline ? (
-                        <code className="px-1 py-0.5 rounded bg-muted" {...rest}>{children}</code>
+                        <code className="px-1 py-0.5 rounded bg-muted break-words" {...rest}>{children}</code>
                       ) : (
-                        <pre className="bg-muted p-3 rounded overflow-x-auto"><code className={className} {...rest}>{children}</code></pre>
+                        <pre className="bg-muted p-3 rounded overflow-x-auto max-w-full"><code className={className} {...rest}>{children}</code></pre>
                       );
                     },
                     strong: ({ node, ...props }) => (

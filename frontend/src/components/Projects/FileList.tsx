@@ -45,9 +45,10 @@ interface FileListProps {
 }
 
 export function FileList({ searchQuery = '' }: FileListProps) {
-  const { projects, authToken } = useAppStore();
+  const { projects, authToken, addFilePreviewMessage } = useAppStore();
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [projectFilesMap, setProjectFilesMap] = useState<Record<string, ProjectFilesData>>({});
+  const [previewingFileId, setPreviewingFileId] = useState<string | null>(null);
 
   // 当项目展开时，加载该项目的文件
   const loadProjectFiles = async (projectId: string) => {
@@ -124,12 +125,24 @@ export function FileList({ searchQuery = '' }: FileListProps) {
   };
 
   const handlePreviewFile = async (file: ProjectFileItem, projectId: string) => {
+    setPreviewingFileId(file.id);
     try {
-      const { preview_url } = await getProjectFilePreviewUrl(projectId, file.id);
-      window.open(preview_url, '_blank', 'noopener,noreferrer');
+      const data = await getProjectFilePreviewUrl(projectId, file.id);
+      // 添加预览消息到 Chat
+      addFilePreviewMessage({
+        weboffice_url: data.weboffice_url,
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        file_name: data.file_name,
+        file_id: data.file_id,
+        expires_in_seconds: data.expires_in_seconds,
+      });
+      toast.success(<div className="text-sm text-emerald-600 whitespace-nowrap">已在对话面板打开预览</div>, { duration: 2000 });
     } catch (e) {
       const msg = e instanceof Error ? e.message : '获取预览链接失败';
       toast.error(<div className="text-sm text-red-600 whitespace-nowrap">{msg}</div>, { duration: 3000 });
+    } finally {
+      setPreviewingFileId(null);
     }
   };
 
@@ -287,17 +300,24 @@ export function FileList({ searchQuery = '' }: FileListProps) {
                                   <MoreVertical className="size-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="border-0 shadow-lg">
-                                <DropdownMenuItem onClick={() => handlePreviewFile(file, project.id)}>
-                                  <Eye className="size-4 mr-2" />
+                              <DropdownMenuContent align="end" className="border border-border shadow-lg p-1.5">
+                                <DropdownMenuItem 
+                                  onClick={() => handlePreviewFile(file, project.id)}
+                                  disabled={previewingFileId === file.id}
+                                >
+                                  {previewingFileId === file.id ? (
+                                    <Loader2 className="size-4 mr-2 ml-1 animate-spin text-foreground" />
+                                  ) : (
+                                    <Eye className="size-4 mr-2 ml-1 text-foreground" />
+                                  )}
                                   预览
                                 </DropdownMenuItem>
-                                <DropdownMenuSeparator />
+                                <DropdownMenuSeparator className='m-1'/>
                                 <DropdownMenuItem 
                                   onClick={() => handleDeleteFile(file, project.id)}
-                                  className="text-destructive"
+                                  className="text-destructive hover:bg-destructive/5 hover:text-destructive focus:bg-destructive/5 focus:text-destructive"
                                 >
-                                  <Trash2 className="size-4 mr-2" />
+                                  <Trash2 className="size-4 mr-2 ml-1 text-destructive" />
                                   删除
                                 </DropdownMenuItem>
                               </DropdownMenuContent>

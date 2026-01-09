@@ -66,6 +66,23 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   isUser?: boolean;
+  // 扩展字段：支持文件预览消息
+  type?: 'text' | 'file-preview';
+  filePreview?: {
+    weboffice_url: string;
+    access_token: string;
+    refresh_token: string;
+    file_name: string;
+    file_id: string;
+    expires_in_seconds?: number;
+  };
+}
+
+export interface ChatThread {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ResearchReport {
@@ -141,6 +158,8 @@ export interface ProjectItem {
   updatedAt?: string;
   // Status
   status: 'accepted' | 'rejected' | 'initiated' | 'received'; // 已受理 / 不受理 / 已立项 / 待受理
+  // AI Summary
+  aiSummary?: string | { text: string; updated_at?: string; updated_by?: string }; // AI 自动摘要
   // Contact & Source
   uploader?: string; // 项目来源（上传人 uploaded_by）
   projectContact?: string; // 项目联系人
@@ -228,6 +247,7 @@ export interface UploadTask {
   createdAt: string;
   completedAt?: string;
   projectId?: string; // The generated project ID after parsing
+  taskId?: string; // PDF 解析任务 ID（用于取消任务）
 }
 
 // Notes used in Smart Canvas
@@ -274,13 +294,38 @@ interface AppState {
   
   // Chat state
   messages: ChatMessage[];
+  threadId: string | null;
+  chatThreads: ChatThread[];
+  setThreadId: (id: string | null) => void;
   addMessage: (content: string, isUser?: boolean) => void;
+  addFilePreviewMessage: (filePreview: NonNullable<ChatMessage['filePreview']>) => void;
   clearMessages: () => void;
-  startAssistantMessage: () => string; // returns id
+  startAssistantMessage: (id?: string) => string; // returns id
+  updateAssistantMessage: (id: string, content: string) => void;
   appendAssistantMessage: (id: string, delta: string) => void;
+  addChatThread: (id: string, title: string) => void;
+  loadThreadMessages: (threadId: string) => Promise<void>;
+  deleteThread: (threadId: string) => void;
   // Chat draft attachments (e.g., dropped items before sending)
-  chatDraftAttachments: { id: string; type: FavoriteType; title: string; content?: string }[];
-  addDraftAttachment: (att: { id: string; type: FavoriteType; title: string; content?: string }) => void;
+  chatDraftAttachments: { 
+    id: string; 
+    type: FavoriteType | 'file'; 
+    title: string; 
+    content?: string;
+    file_format?: string;
+    is_processing?: boolean;
+    error?: string;
+  }[];
+  addDraftAttachment: (att: { 
+    id: string; 
+    type: FavoriteType | 'file'; 
+    title: string; 
+    content?: string;
+    file_format?: string;
+    is_processing?: boolean;
+    error?: string;
+  }) => void;
+  updateDraftAttachment: (id: string, updates: Partial<NonNullable<AppState['chatDraftAttachments'][0]>>) => void;
   removeDraftAttachment: (id: string) => void;
   clearDraftAttachments: () => void;
   
@@ -456,6 +501,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   // Chat state
   messages: [],
+  threadId: null,
+  chatThreads: [],
+  setThreadId: (id) => set({ threadId: id }),
   chatDraftAttachments: [],
   addMessage: (content: string, isUser = true) => set(state => ({
     messages: [...state.messages, {
@@ -463,29 +511,87 @@ export const useAppStore = create<AppState>((set, get) => ({
       content,
       timestamp: new Date().toISOString(),
       isUser,
+      type: 'text',
     }]
   })),
-  clearMessages: () => set({ messages: [] }),
-  startAssistantMessage: () => {
-    const id = crypto.randomUUID();
+  addFilePreviewMessage: (filePreview) => set(state => ({
+    messages: [...state.messages, {
+      id: crypto.randomUUID(),
+      content: `正在预览文件：${filePreview.file_name}`,
+      timestamp: new Date().toISOString(),
+      isUser: false,
+      type: 'file-preview',
+      filePreview,
+    }]
+  })),
+  clearMessages: () => set({ messages: [], threadId: null }),
+  startAssistantMessage: (id) => {
+    const newId = id || crypto.randomUUID();
     set(state => ({
       messages: [...state.messages, {
-        id,
+        id: newId,
         content: '',
         timestamp: new Date().toISOString(),
         isUser: false,
+        type: 'text',
       }]
     }));
-    return id;
+    return newId;
   },
+  updateAssistantMessage: (id: string, content: string) => set(state => ({
+    messages: state.messages.map(m => m.id === id ? { ...m, content } : m)
+  })),
   appendAssistantMessage: (id: string, delta: string) => set(state => ({
     messages: state.messages.map(m => m.id === id ? { ...m, content: (m.content + delta) } : m)
+  })),
+  addChatThread: (id: string, title: string) => set(state => {
+    // Check if thread already exists
+    if (state.chatThreads.some(t => t.id === id)) {
+      return state as any;
+    }
+    const now = new Date().toISOString();
+    const newThread: ChatThread = {
+      id,
+      title,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return { chatThreads: [newThread, ...state.chatThreads] } as any;
+  }),
+  loadThreadMessages: async (threadId: string) => {
+    try {
+      const { getThreadHistory } = await import('@/lib/agentApi');
+      const history = await getThreadHistory(threadId);
+      
+      // Convert history messages to ChatMessage format
+      const messages: ChatMessage[] = history.messages.map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        timestamp: msg.timestamp ? new Date(msg.timestamp).toISOString() : new Date().toISOString(),
+        isUser: msg.role === 'user',
+        type: 'text' as const,
+      }));
+      
+      set({ messages, threadId });
+    } catch (error) {
+      console.error('[Store] Failed to load thread messages:', error);
+      throw error;
+    }
+  },
+  deleteThread: (threadId: string) => set(state => ({
+    chatThreads: state.chatThreads.filter(t => t.id !== threadId),
+    ...(state.threadId === threadId ? { messages: [], threadId: null } : {})
   })),
   addDraftAttachment: (att) => set(state => {
     const exists = state.chatDraftAttachments.some(a => a.id === att.id && a.type === att.type);
     if (exists) return {} as any;
     return { chatDraftAttachments: [...state.chatDraftAttachments, att] } as any;
   }),
+  updateDraftAttachment: (id, updates) => set(state => ({
+    chatDraftAttachments: state.chatDraftAttachments.map(a => 
+      a.id === id ? { ...a, ...updates } : a
+    )
+  })),
   removeDraftAttachment: (id: string) => set(state => ({
     chatDraftAttachments: state.chatDraftAttachments.filter(a => a.id !== id)
   })),
