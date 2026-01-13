@@ -244,6 +244,8 @@ export interface ProjectItem {
   bp_file?: string;
   // 工商信息（预留）
   business_registration?: any;
+  // 评论
+  comments?: ProjectComment[];
   
   // ===== 兼容旧字段（供旧代码使用） =====
   coreTeam?: CoreTeamMember[]; // 旧的团队字段
@@ -252,6 +254,15 @@ export interface ProjectItem {
   competitionAnalysis?: string; // 旧的竞争分析字段
   marketSize?: string; // 旧的市场空间字段
   financialStatus?: FinancialStatus; // 旧的财务字段（保持兼容）
+}
+
+export interface ProjectComment {
+  id: string;
+  projectId: string;
+  author: string;
+  content: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface UploadedFileMeta {
@@ -428,10 +439,13 @@ interface AppState {
   projects: ProjectItem[];
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
+  getProjectById: (id: string) => ProjectItem | undefined;
   addProject: (p: Omit<ProjectItem, 'id' | 'createdAt'> & Partial<Pick<ProjectItem, 'id' | 'createdAt'>>) => void;
   removeProject: (id: string) => void;
   updateProject: (id: string, updates: Partial<ProjectItem>) => void;
   setProjects: (list: ProjectItem[]) => void;
+  addProjectComment: (projectId: string, content: string) => Promise<void>;
+  deleteProjectComment: (projectId: string, commentId: string) => Promise<void>;
   uploadedFiles: UploadedFileMeta[];
   removeUploadedFiles: (ids: string[]) => void;
   
@@ -720,6 +734,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   selectedProjectId: null,
   setSelectedProjectId: (id: string | null) => set({ selectedProjectId: id }),
+  getProjectById: (id: string) => get().projects.find(p => p.id === id),
   uploadedFiles: [],
   
   // File Folders
@@ -742,6 +757,46 @@ export const useAppStore = create<AppState>((set, get) => ({
     projects: state.projects.map(p => p.id === id ? { ...p, ...updates} : p)
   })),
   setProjects: (list: ProjectItem[]) => set({ projects: list }),
+  
+  // Project comments
+  addProjectComment: async (projectId: string, content: string) => {
+    const state = get();
+    const currentUser = state.currentUser;
+    
+    if (!currentUser) {
+      throw new Error('用户未登录');
+    }
+    
+    const newComment: ProjectComment = {
+      id: crypto.randomUUID(),
+      projectId,
+      author: currentUser,
+      content,
+      createdAt: new Date().toISOString(),
+    };
+    
+    set(state => ({
+      projects: state.projects.map(p => 
+        p.id === projectId 
+          ? { ...p, comments: [...(p.comments || []), newComment] }
+          : p
+      )
+    }));
+    
+    // TODO: 后续可以添加 API 调用保存到后端
+  },
+  
+  deleteProjectComment: async (projectId: string, commentId: string) => {
+    set(state => ({
+      projects: state.projects.map(p => 
+        p.id === projectId 
+          ? { ...p, comments: (p.comments || []).filter(c => c.id !== commentId) }
+          : p
+      )
+    }));
+    
+    // TODO: 后续可以添加 API 调用删除后端数据
+  },
   
   // Folder operations
   addFolder: (name: string, color?: string) => set(state => ({

@@ -318,7 +318,9 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         editedProject={editedProject}
         isEditing={isEditing}
         displayStatus={displayStatus}
+        keywords={keywords}
         onFieldChange={handleChange}
+        onKeywordsChange={setKeywords}
         onStartEdit={handleStartEdit}
         onSave={handleSave}
         onCancel={handleCancel}
@@ -358,9 +360,7 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
                 <ProjectDetailBody
                   editedProject={editedProject}
                   isEditing={isEditing}
-                  keywords={keywords}
                   onFieldChange={handleChange}
-                  onKeywordsChange={setKeywords}
                 />
               </ScrollArea>
             </TabsContent>
@@ -390,9 +390,7 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
       <AcceptanceDialog
         open={acceptanceOpen}
         draft={acceptanceDraft}
-        keywords={acceptanceKeywords}
         onFieldChange={handleAcceptanceFieldChange}
-        onKeywordsChange={setAcceptanceKeywords}
         onCancel={handleCancelAcceptance}
         onConfirm={handleAcceptSave}
       />

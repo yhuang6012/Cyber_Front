@@ -7,9 +7,7 @@ import { ProjectDetailBody } from '../ProjectDetail/ProjectDetailBody';
 interface AcceptanceDialogProps {
   open: boolean;
   draft: ProjectItem | null;
-  keywords: string;
   onFieldChange: (field: keyof ProjectItem, value: any) => void;
-  onKeywordsChange: (value: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -17,9 +15,7 @@ interface AcceptanceDialogProps {
 export function AcceptanceDialog({
   open,
   draft,
-  keywords,
   onFieldChange,
-  onKeywordsChange,
   onCancel,
   onConfirm,
 }: AcceptanceDialogProps) {
@@ -39,9 +35,7 @@ export function AcceptanceDialog({
             <ProjectDetailBody
               editedProject={draft}
               isEditing
-              keywords={keywords}
               onFieldChange={onFieldChange}
-              onKeywordsChange={onKeywordsChange}
             />
           )}
         </ScrollArea>

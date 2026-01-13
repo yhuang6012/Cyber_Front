@@ -10,7 +10,9 @@ interface ProjectDetailHeaderProps {
   editedProject: ProjectItem;
   isEditing: boolean;
   displayStatus: ReturnType<typeof getStatusDisplay>;
+  keywords: string;
   onFieldChange: (field: keyof ProjectItem, value: any) => void;
+  onKeywordsChange: (value: string) => void;
   onStartEdit: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -24,7 +26,9 @@ export function ProjectDetailHeader({
   editedProject,
   isEditing,
   displayStatus,
+  keywords,
   onFieldChange,
+  onKeywordsChange,
   onStartEdit,
   onSave,
   onCancel,
@@ -34,7 +38,7 @@ export function ProjectDetailHeader({
 }: ProjectDetailHeaderProps) {
   return (
     <div className="px-8 pb-3 pt-2 bg-gradient-to-r from-background via-background to-muted/20">
-      <div className="space-y-2">
+      <div className="space-y-3">
         {/* First Row: Project Name, Status Badge (view mode), and Edit Button */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -145,6 +149,28 @@ export function ProjectDetailHeader({
             </AnimatePresence>
           </div>
         </div>
+
+        {/* Keywords - Below title */}
+        {isEditing ? (
+          <Input
+            value={keywords}
+            onChange={(e) => onKeywordsChange(e.target.value)}
+            placeholder="添加关键词，用逗号分隔..."
+            className="text-xs h-8 bg-muted/30 border-dashed"
+          />
+        ) : editedProject.keywords && editedProject.keywords.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {editedProject.keywords.map((kw, idx) => (
+              <Badge 
+                key={idx} 
+                variant="secondary" 
+                className="text-[10px] px-2 py-0.5 bg-primary/5 hover:bg-primary/10 text-primary border-0 font-normal rounded-full"
+              >
+                {kw}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

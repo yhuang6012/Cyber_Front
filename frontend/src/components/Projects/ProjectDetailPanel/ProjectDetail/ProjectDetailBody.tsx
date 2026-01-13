@@ -1,7 +1,6 @@
 import { ProjectItem } from '@/store/useAppStore';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { 
   Building2,
@@ -9,25 +8,22 @@ import {
   Cpu,
   TrendingUp,
   Wallet,
-  Tag,
   User,
   Phone,
   MapPin,
   Briefcase,
   UserCircle,
   Link,
-  FileText,
   Sparkles
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AiSummarySection } from './AiSummarySection';
+import { ProjectCommentsSection } from './ProjectCommentsSection';
 
 interface ProjectDetailBodyProps {
   editedProject: ProjectItem;
   isEditing: boolean;
-  keywords: string;
   onFieldChange: (field: keyof ProjectItem, value: any) => void;
-  onKeywordsChange: (value: string) => void;
 }
 
 // Section component for consistent styling
@@ -62,33 +58,13 @@ const Section = ({
 export function ProjectDetailBody({
   editedProject,
   isEditing,
-  keywords,
   onFieldChange,
-  onKeywordsChange,
 }: ProjectDetailBodyProps) {
   return (
     <div className="px-6 py-6 space-y-8">
       {/* AI Summary */}
       <Section icon={null} title="" hideTitle>
         <AiSummarySection project={editedProject} />
-      </Section>
-
-      {/* Manager Note */}
-      <Section icon={FileText} title="投资经理笔记">
-        {isEditing ? (
-          <Textarea
-            value={editedProject.description || ''}
-            onChange={(e) => onFieldChange('description', e.target.value)}
-            className="min-h-[100px] resize-none"
-            placeholder="记录受理判断、尽调要点、沟通反馈等..."
-          />
-        ) : (
-          <div className="p-4 rounded-xl bg-muted/40 border border-border/50">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {editedProject.description?.trim() ? editedProject.description : <span className="text-muted-foreground/60 italic">暂无笔记</span>}
-            </p>
-          </div>
-        )}
       </Section>
 
       {/* Project Role & Contact Info - Single Row */}
@@ -517,47 +493,9 @@ export function ProjectDetailBody({
         </Section>
       )}
 
-      {/* Keywords */}
-      <Section icon={Tag} title="关键词">
-        {isEditing ? (
-          <div className="space-y-3">
-            <Input
-              value={keywords}
-              onChange={(e) => onKeywordsChange(e.target.value)}
-              placeholder="输入关键词，用逗号分隔..."
-              className="text-sm"
-            />
-            {keywords && (
-              <div className="flex flex-wrap gap-2">
-                {keywords.split(',').map((kw, idx) => {
-                  const trimmed = kw.trim();
-                  if (!trimmed) return null;
-                  return (
-                    <Badge key={idx} variant="secondary" className="text-xs">
-                      {trimmed}
-                    </Badge>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {editedProject.keywords && editedProject.keywords.length > 0 ? (
-              editedProject.keywords.map((kw, idx) => (
-                <Badge 
-                  key={idx} 
-                  variant="outline" 
-                  className="text-xs px-3 py-1 bg-muted/30"
-                >
-                  {kw}
-                </Badge>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground/60 italic">暂无关键词</p>
-            )}
-          </div>
-        )}
+      {/* Project Comments - At the bottom */}
+      <Section icon={null} title="" hideTitle>
+        <ProjectCommentsSection projectId={editedProject.id} />
       </Section>
     </div>
   );
