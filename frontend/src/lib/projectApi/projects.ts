@@ -355,8 +355,8 @@ export async function updateProject(
   if (updates.coreTechnology) payload.core_technology = updates.coreTechnology;
   if (updates.competitionAnalysis) payload.competition_analysis = updates.competitionAnalysis;
   if (updates.marketSize) payload.market_size = updates.marketSize;
-  if (updates.financialStatus) payload.financial_status = updates.financialStatus;
-  if (updates.financingHistory) payload.financing_history = updates.financingHistory;
+  if (updates.financial_status) payload.financial_status = updates.financial_status;
+  if (updates.financing_history) payload.financing_history = updates.financing_history;
   if (updates.keywords) payload.keywords = Array.isArray(updates.keywords) ? updates.keywords : updates.keywords;
 
   console.log('[projectApi] updateProject ->', url, payload);

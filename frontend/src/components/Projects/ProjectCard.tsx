@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, XCircle, Rocket, Hourglass, Building2, User, Phone, Package, Cpu, TrendingUp, DollarSign, Tag, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Rocket, Hourglass, Building2, User, Phone, Package, Cpu, TrendingUp, Tag, Trash2 } from 'lucide-react';
 import { ProjectItem } from '@/store/useAppStore';
 import {
   AlertDialog,
@@ -265,15 +265,6 @@ export function ProjectCard({ project, variant = 'compact', onDelete, onClick }:
           </div>
         )}
 
-        {project.financingHistory?.current_funding_need && (
-          <div className="flex items-start gap-2 text-sm">
-            <DollarSign className="size-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-            <div className="min-w-0">
-              <span className="font-medium">融资需求：</span>
-              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{project.financingHistory.current_funding_need}</p>
-            </div>
-          </div>
-        )}
       </div>
 
       {project.keywords && project.keywords.length > 0 && (
