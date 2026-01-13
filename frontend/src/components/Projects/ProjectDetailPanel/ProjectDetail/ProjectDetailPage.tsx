@@ -2,10 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { ProjectItem, useAppStore } from '@/store/useAppStore';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ChevronLeft, FileText, ClipboardList } from 'lucide-react';
 import { ProjectDetailHeader } from './ProjectDetailHeader';
 import { ProjectDetailBody } from './ProjectDetailBody';
-import { ProjectDetailTopSection } from './ProjectDetailTopSection';
 import { ProjectProgressLedger } from '../Ledger/ProjectProgressLedger';
 import { ProjectStatusDialog } from '../Ledger/ProjectStatusDialog';
 import { getStatusDisplay, getConfirmMessage, normalizeKeywords } from './projectDetailUtils';
@@ -22,6 +22,7 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
   const [editedProject, setEditedProject] = useState<ProjectItem>(project);
   const [keywords, setKeywords] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'detail' | 'ledger'>('detail');
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState<ProjectItem['status'] | null>(null);
   const [confirmConfig, setConfirmConfig] = useState<{
     status: ProjectItem['status'];
@@ -115,8 +116,8 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
       core_technology: editedProject.coreTechnology,
       competition_analysis: editedProject.competitionAnalysis,
       market_size: editedProject.marketSize,
-      financial_status: editedProject.financialStatus,
-      financing_history: editedProject.financingHistory,
+      financial_status: editedProject.financial_status,
+      financing_history: editedProject.financing_history,
       keywords: normalizeKeywords(keywords),
     };
 
@@ -257,8 +258,8 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         core_technology: acceptanceDraft.coreTechnology,
         competition_analysis: acceptanceDraft.competitionAnalysis,
         market_size: acceptanceDraft.marketSize,
-        financial_status: acceptanceDraft.financialStatus,
-        financing_history: acceptanceDraft.financingHistory,
+        financial_status: acceptanceDraft.financial_status,
+        financing_history: acceptanceDraft.financing_history,
         keywords: normalizeKeywords(acceptanceKeywords),
       };
 
@@ -327,32 +328,50 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         onClose={handleBack}
       />
 
-      {/* Top Section: AI Summary + Manager Notes */}
-      <ProjectDetailTopSection
-        editedProject={editedProject}
-        isEditing={isEditing}
-        onFieldChange={handleChange}
-      />
+      {/* Content with Tabs */}
+      <div className="flex-1 overflow-hidden">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'detail' | 'ledger')} className="h-full flex flex-col">
+          {/* Tab Navigation */}
+          <div className="px-6 pt-4">
+            <TabsList className="inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1">
+              <TabsTrigger 
+                value="detail" 
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow gap-2"
+              >
+                <FileText className="size-4" />
+                项目详情
+              </TabsTrigger>
+              <TabsTrigger 
+                value="ledger" 
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow gap-2"
+              >
+                <ClipboardList className="size-4" />
+                项目台账
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-      {/* Content: Two Columns Layout */}
-      <div className="flex-1 flex gap-6 overflow-hidden px-6 pb-6">
-        {/* Left: Detail Content */}
-        <div className="w-[60%] min-w-0">
-          <ScrollArea className="h-full">
-            <ProjectDetailBody
-              editedProject={editedProject}
-              isEditing={isEditing}
-              keywords={keywords}
-              onFieldChange={handleChange}
-              onKeywordsChange={setKeywords}
-            />
-          </ScrollArea>
-        </div>
+          {/* Tab Content */}
+          <div className="flex-1 overflow-hidden">
+            <TabsContent value="detail" className="h-full m-0 p-0">
+              <ScrollArea className="h-full px-6 py-6">
+                <ProjectDetailBody
+                  editedProject={editedProject}
+                  isEditing={isEditing}
+                  keywords={keywords}
+                  onFieldChange={handleChange}
+                  onKeywordsChange={setKeywords}
+                />
+              </ScrollArea>
+            </TabsContent>
 
-        {/* Right: Ledger Progress */}
-        <div className="w-[40%] flex-shrink-0">
-          <ProjectProgressLedger project={editedProject} />
-        </div>
+            <TabsContent value="ledger" className="h-full m-0 p-0">
+              <div className="h-full overflow-auto">
+                <ProjectProgressLedger project={editedProject} />
+              </div>
+            </TabsContent>
+          </div>
+        </Tabs>
       </div>
 
       {/* Confirm dialog for status changes */}

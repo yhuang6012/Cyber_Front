@@ -159,58 +159,48 @@ export function AiSummarySection({ project }: AiSummarySectionProps) {
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-foreground/80">
-          <Sparkles className="size-3 text-primary" />
-          <h3 className="font-semibold text-sm tracking-wide uppercase">AI 自动摘要</h3>
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 text-foreground/80">
+        <Sparkles className="size-4 text-primary" />
+        <h3 className="font-bold text-lg tracking-wide uppercase">AI 自动摘要</h3>
         <Button
-          variant="outline"
-          size="sm"
+          variant="ghost"
+          size="icon"
           onClick={handleGenerate}
           disabled={isGenerating || autoPolling}
-          className="gap-1 h-7 text-xs px-2"
+          className="h-7 w-7 ml-1"
+          title={isGenerating || autoPolling ? '生成中...' : hasAiSummary() ? '重新生成 AI 摘要' : '生成 AI 摘要'}
         >
           {isGenerating || autoPolling ? (
-            <>
-              <Loader2 className="size-3 animate-spin" />
-              生成中
-            </>
+            <Loader2 className="size-4 animate-spin" />
           ) : hasAiSummary() ? (
-            <>
-              <RefreshCw className="size-3" />
-              重新生成
-            </>
+            <RefreshCw className="size-4" />
           ) : (
-            <>
-              <Sparkles className="size-3" />
-              生成
-            </>
+            <Sparkles className="size-4" />
           )}
         </Button>
       </div>
       
-      <div>
+      <div className="pl-1">
         {hasAiSummary() ? (
-          <div className="p-2.5 rounded-md bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 min-h-[80px]">
-            <p className="text-xs leading-relaxed whitespace-pre-wrap">
+          <div className="p-4 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">
               {getAiSummaryText()}
             </p>
           </div>
         ) : autoPolling || isGenerating ? (
-          <div className="p-2.5 rounded-md bg-muted/40 border border-border/50 min-h-[80px] flex items-center justify-center">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="size-3.5 animate-spin text-primary" />
-              <p className="text-xs">
-                生成中...
+          <div className="p-4 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-center">
+            <div className="flex items-center gap-2.5 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin text-primary" />
+              <p className="text-sm">
+                AI 摘要生成中，预计需要 10-30 秒...
               </p>
             </div>
           </div>
         ) : (
-          <div className="p-2.5 rounded-md bg-muted/40 border border-border/50 border-dashed min-h-[80px] flex items-center justify-center">
-            <p className="text-xs text-muted-foreground/60 italic text-center">
-              点击"生成"按钮生成摘要
+          <div className="p-4 rounded-xl bg-muted/40 border border-border/50 border-dashed flex items-center justify-center">
+            <p className="text-sm text-muted-foreground/60 italic text-center">
+              点击"生成摘要"按钮自动生成项目摘要
             </p>
           </div>
         )}

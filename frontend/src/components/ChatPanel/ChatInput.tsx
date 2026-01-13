@@ -10,11 +10,10 @@ import { cn } from '@/lib/utils';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 interface ChatInputProps {
-  variant?: 'default' | 'glass';
   className?: string;
 }
 
-export function ChatInput({ variant = 'default', className }: ChatInputProps) {
+export function ChatInput({ className }: ChatInputProps) {
   const [input, setInput] = useState('');
   // Fake toggle for UI only. Backend always uses chat mode.
   const [deepResearch, setDeepResearch] = useState(false);
@@ -216,14 +215,7 @@ export function ChatInput({ variant = 'default', className }: ChatInputProps) {
   };
 
   return (
-    <div
-      className={cn(
-        variant === 'glass'
-          ? 'bg-background/35 supports-[backdrop-filter]:bg-background/25 backdrop-blur-md border border-border/50 shadow-lg rounded-xl p-3 md:p-4'
-          : 'bg-background p-4',
-        className
-      )}
-    >
+    <div className={cn('bg-background pb-4 pt-0', className)}>
       <form onSubmit={handleSubmit}>
         <div className="relative">
           <Textarea

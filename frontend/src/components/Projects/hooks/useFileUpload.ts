@@ -64,32 +64,60 @@ export function useFileUpload() {
         // 使用 project_id（来自 bps 上传接口返回）获取项目提取的数据
         const extractedInfo = await getProjectIntakeDraft(projectId);
         
-        // 创建项目卡片（只在解析成功时创建）
+        console.log('[useFileUpload] 获取到的项目数据:', extractedInfo);
+        
+        // 创建项目卡片（只在解析成功时创建）- 适配新的API结构
         const newProject: ProjectItem = {
           id: projectId,
           name: extractedInfo.project_name || fileName.replace(/\.[^.]+$/, ''),
           description: extractedInfo.description,
           aiSummary: extractedInfo.ai_summary,
           status: 'received',
-          tags: [],
+          tags: extractedInfo.tags || [],
           sourceFileName: fileName,
           createdAt: new Date().toISOString(),
           updatedAt: extractedInfo.updated_at,
+          // 基础信息
           companyName: extractedInfo.company_name,
           companyAddress: extractedInfo.company_address,
-          industry: extractedInfo.industry,
           projectContact: extractedInfo.project_contact,
           contactInfo: extractedInfo.contact_info,
+          contact: extractedInfo.contact,
           uploader: extractedInfo.uploaded_by_username,
-          coreTeam: extractedInfo.core_team,
-          coreProduct: extractedInfo.core_product,
-          coreTechnology: extractedInfo.core_technology,
-          competitionAnalysis: extractedInfo.competition_analysis,
-          marketSize: extractedInfo.market_size,
-          financialStatus: extractedInfo.financial_status,
-          financingHistory: extractedInfo.financing_history,
-          keywords: extractedInfo.keywords || [],
           projectSource: extractedInfo.project_source,
+          // 行业分类（三级）
+          industry: extractedInfo.industry,
+          industry_secondary: extractedInfo.industry_secondary,
+          industry_tertiary: extractedInfo.industry_tertiary,
+          // 项目信息
+          project_stage: extractedInfo.project_stage,
+          region: extractedInfo.region,
+          one_liner: extractedInfo.one_liner,
+          // 新结构的嵌套对象
+          core_team: extractedInfo.core_team,
+          product: extractedInfo.product,
+          technology: extractedInfo.technology,
+          market: extractedInfo.market,
+          competition: extractedInfo.competition,
+          financial_status: extractedInfo.financial_status,
+          financing_history: extractedInfo.financing_history,
+          highlights: extractedInfo.highlights,
+          // 其他字段
+          awards: extractedInfo.awards || [],
+          keywords: extractedInfo.keywords || [],
+          // 溯源信息
+          field_page_idx: extractedInfo.field_page_idx,
+          team_members_text: extractedInfo.team_members_text,
+          bp_file: extractedInfo.bp_file,
+          business_registration: extractedInfo.business_registration,
+          
+          // 兼容旧字段（供旧代码使用）
+          coreTeam: extractedInfo.core_team_members,
+          coreProduct: extractedInfo.core_product || extractedInfo.product?.description,
+          coreTechnology: extractedInfo.core_technology || extractedInfo.technology?.key_points,
+          competitionAnalysis: extractedInfo.competition_analysis || extractedInfo.competition?.differentiation,
+          marketSize: extractedInfo.market_size || extractedInfo.market?.market_size,
+          financialStatus: extractedInfo.financial_status,
         };
 
         // Add project and file to store

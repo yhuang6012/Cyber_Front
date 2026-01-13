@@ -40,11 +40,11 @@ export function HomePage() {
         {/* When chat is collapsed, keep original layout (no resizable needed) */}
         {!isChatExpanded ? (
           <motion.div className="border-r border-border flex flex-col h-full" animate={{ width: '100%' }} transition={{ duration: 0.3, ease: 'easeInOut' }}>
-            <div className={`flex-1 min-h-0 pb-4`}>
+            <div className={`flex-1 min-h-0 pb-0`}>
               {renderActivePanel()}
             </div>
-            <div className="sticky bottom-4 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="mx-auto w-full max-w-3xl">
+            <div className="sticky bottom-2">
+              <div className="mx-auto w-full max-w-2xl">
                 <ChatInput />
               </div>
             </div>

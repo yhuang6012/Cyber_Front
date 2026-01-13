@@ -123,29 +123,62 @@ export interface AgentCompany {
   latest_finance_date?: string | null;
 }
 
-// 核心团队成员
-export interface CoreTeamMember {
-  name: string;
-  role?: string;
-  background?: string;
+// ===== 新的API返回结构类型定义 =====
+
+// 核心团队
+export interface CoreTeam {
+  ai_analysis?: string;
+  description?: string;
+}
+
+// 产品
+export interface Product {
+  ai_analysis?: string;
+  description?: string;
+}
+
+// 技术
+export interface Technology {
+  ai_analysis?: string;
+  description?: string;
+}
+
+// 市场
+export interface Market {
+  ai_analysis?: string;
+  description?: string;
+}
+
+// 竞争
+export interface Competition {
+  ai_analysis?: string;
+  description?: string;
 }
 
 // 财务状况
 export interface FinancialStatus {
-  current?: string;
-  future?: string;
+  ai_analysis?: string;
+  description?: string;
 }
 
 // 融资历史
 export interface FinancingHistory {
-  completed_rounds?: Array<{
-    round?: string;
-    amount?: string;
-    date?: string;
-    investors?: string[];
-  }>;
-  current_funding_need?: string;
-  funding_use?: string[];
+  description?: string;
+}
+
+// 亮点
+export interface Highlights {
+  talent?: string[];
+  technology?: string[];
+  industry?: string[];
+  financing?: string[];
+}
+
+// 兼容旧的 CoreTeamMember 类型（供旧代码使用）
+export interface CoreTeamMember {
+  name: string;
+  role?: string;
+  background?: string;
 }
 
 export interface ProjectItem {
@@ -160,27 +193,65 @@ export interface ProjectItem {
   status: 'accepted' | 'rejected' | 'initiated' | 'received'; // 已受理 / 不受理 / 已立项 / 待受理
   // AI Summary
   aiSummary?: string | { text: string; updated_at?: string; updated_by?: string }; // AI 自动摘要
-  // Contact & Source
-  uploader?: string; // 项目来源（上传人 uploaded_by）
+  // 基础信息
+  uploader?: string; // 上传人 (uploaded_by_username)
   projectContact?: string; // 项目联系人
   contactInfo?: string; // 联系方式
-  // Company Info
+  contact?: {
+    name?: string;
+    email?: string;
+    phone?: string;
+  }; // contact 对象
   companyName?: string;
   companyAddress?: string;
-  industry?: string; // 公司领域/所属行业
   projectSource?: string; // 项目来源/渠道
-  // Team & Product
-  coreTeam?: CoreTeamMember[]; // 核心团队（数组）
-  coreProduct?: string; // 核心产品
-  coreTechnology?: string; // 核心技术
-  // Market & Competition
-  competitionAnalysis?: string; // 竞争分析
-  marketSize?: string; // 市场空间
-  // Finance
-  financialStatus?: FinancialStatus; // 财务情况
-  financingHistory?: FinancingHistory; // 融资历史
-  // Keywords
-  keywords?: string[]; // 关键词
+  // 行业分类（三级）
+  industry?: string; // 一级行业
+  industry_secondary?: string; // 二级行业
+  industry_tertiary?: string; // 三级行业
+  // 项目信息
+  project_stage?: string; // 项目阶段
+  region?: string; // 区域
+  one_liner?: string; // 一句话介绍
+  // 团队（新结构）
+  core_team?: CoreTeam; // 核心团队（对象）
+  // 产品（新结构）
+  product?: Product; // 产品（对象）
+  // 技术（新结构）
+  technology?: Technology; // 技术（对象）
+  // 市场（新结构）
+  market?: Market; // 市场（对象）
+  // 竞争（新结构）
+  competition?: Competition; // 竞争（对象）
+  // 财务（新结构）
+  financial_status?: FinancialStatus; // 财务情况（对象）
+  // 融资（新结构）
+  financing_history?: FinancingHistory; // 融资历史（对象）
+  // 奖项
+  awards?: Array<{
+    year?: string;
+    issuer?: string;
+    page_idx?: string;
+    award_name?: string;
+  }> | string[]; // 可能是对象数组或字符串数组
+  // 亮点（新结构）
+  highlights?: Highlights; // 亮点（对象）
+  // 关键词
+  keywords?: string[];
+  // 溯源信息
+  field_page_idx?: string;
+  team_members_text?: string;
+  bp_file?: string;
+  // 工商信息（预留）
+  business_registration?: any;
+  
+  // ===== 兼容旧字段（供旧代码使用） =====
+  coreTeam?: CoreTeamMember[]; // 旧的团队字段
+  coreProduct?: string; // 旧的产品字段
+  coreTechnology?: string; // 旧的技术字段
+  competitionAnalysis?: string; // 旧的竞争分析字段
+  marketSize?: string; // 旧的市场空间字段
+  financialStatus?: FinancialStatus; // 旧的财务字段（保持兼容）
 }
 
 export interface UploadedFileMeta {
