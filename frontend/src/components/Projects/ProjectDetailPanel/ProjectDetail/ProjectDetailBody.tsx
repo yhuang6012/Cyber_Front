@@ -28,20 +28,23 @@ interface ProjectDetailBodyProps {
 
 // Section component for consistent styling
 const Section = ({ 
+  id,
   icon: Icon, 
   title, 
   children,
   hideTitle = false
 }: { 
+  id?: string;
   icon: React.ElementType | null; 
   title: string; 
   children: React.ReactNode;
   hideTitle?: boolean;
 }) => (
   <motion.div 
+    id={id}
     initial={{ opacity: 0, y: 10 }}
     animate={{ opacity: 1, y: 0 }}
-    className="space-y-4"
+    className="space-y-4 scroll-mt-4"
   >
     {!hideTitle && (
       <div className="flex items-center gap-2.5 text-foreground/80">
@@ -61,14 +64,14 @@ export function ProjectDetailBody({
   onFieldChange,
 }: ProjectDetailBodyProps) {
   return (
-    <div className="px-6 py-6 space-y-8">
+    <div className="space-y-8">
       {/* AI Summary */}
-      <Section icon={null} title="" hideTitle>
+      <Section id="ai-summary" icon={null} title="" hideTitle>
         <AiSummarySection project={editedProject} />
       </Section>
 
       {/* Project Role & Contact Info - Single Row */}
-      <div className="grid md:grid-cols-2 gap-8">
+      <div id="project-role" className="grid md:grid-cols-2 gap-8 scroll-mt-4">
         {/* Project Role */}
         <Section icon={Briefcase} title="项目角色">
           {isEditing ? (
@@ -109,7 +112,7 @@ export function ProjectDetailBody({
         </Section>
 
         {/* Contact Info */}
-        <Section icon={User} title="对接信息">
+        <Section id="contact-info" icon={User} title="对接信息">
           {isEditing ? (
             <div className="grid gap-5">
               <div className="grid grid-cols-2 gap-4">
@@ -151,7 +154,7 @@ export function ProjectDetailBody({
       </div>
 
       {/* Company Info */}
-      <Section icon={Building2} title="公司信息">
+      <Section id="company-info" icon={Building2} title="公司信息">
         {isEditing ? (
           <div className="grid gap-5">
             <div className="space-y-2">
@@ -256,7 +259,7 @@ export function ProjectDetailBody({
       </Section>
 
       {/* Team */}
-      <Section icon={Users} title="核心团队">
+      <Section id="core-team" icon={Users} title="核心团队">
         {editedProject.core_team ? (
           <div className="space-y-4">
             {/* 团队描述 */}
@@ -286,7 +289,7 @@ export function ProjectDetailBody({
 
       {/* Product */}
       {editedProject.product && (
-        <Section icon={Cpu} title="产品">
+        <Section id="product" icon={Cpu} title="产品">
           <div className="space-y-4">
             {editedProject.product.description && (
               <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
@@ -310,7 +313,7 @@ export function ProjectDetailBody({
 
       {/* Technology */}
       {editedProject.technology && (
-        <Section icon={Cpu} title="技术">
+        <Section id="technology" icon={Cpu} title="技术">
           <div className="space-y-4">
             {editedProject.technology.description && (
               <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
@@ -334,7 +337,7 @@ export function ProjectDetailBody({
 
       {/* Market */}
       {editedProject.market && (
-        <Section icon={TrendingUp} title="市场">
+        <Section id="market" icon={TrendingUp} title="市场">
           <div className="space-y-4">
             {editedProject.market.description && (
               <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
@@ -358,7 +361,7 @@ export function ProjectDetailBody({
 
       {/* Competition */}
       {editedProject.competition && (
-        <Section icon={TrendingUp} title="竞争">
+        <Section id="competition" icon={TrendingUp} title="竞争">
           <div className="space-y-4">
             {editedProject.competition.description && (
               <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
@@ -382,7 +385,7 @@ export function ProjectDetailBody({
 
       {/* Financial Status */}
       {editedProject.financial_status && (
-        <Section icon={Wallet} title="财务情况">
+        <Section id="financial" icon={Wallet} title="财务情况">
           <div className="space-y-4">
             {editedProject.financial_status.description && (
               <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
@@ -406,7 +409,7 @@ export function ProjectDetailBody({
 
       {/* Financing History */}
       {editedProject.financing_history && editedProject.financing_history.description && (
-        <Section icon={Wallet} title="融资历史">
+        <Section id="financing" icon={Wallet} title="融资历史">
           <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
             <p className="text-sm leading-relaxed whitespace-pre-wrap">{editedProject.financing_history.description}</p>
           </div>
@@ -494,7 +497,7 @@ export function ProjectDetailBody({
       )}
 
       {/* Project Comments - At the bottom */}
-      <Section icon={null} title="" hideTitle>
+      <Section id="comments" icon={null} title="" hideTitle>
         <ProjectCommentsSection projectId={editedProject.id} />
       </Section>
     </div>

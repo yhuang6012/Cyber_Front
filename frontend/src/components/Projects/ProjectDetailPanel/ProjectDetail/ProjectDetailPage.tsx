@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ChevronLeft, FileText, ClipboardList } from 'lucide-react';
 import { ProjectDetailHeader } from './ProjectDetailHeader';
 import { ProjectDetailBody } from './ProjectDetailBody';
+import { ProjectDetailNav } from './ProjectDetailNav';
 import { ProjectProgressLedger } from '../Ledger/ProjectProgressLedger';
 import { ProjectStatusDialog } from '../Ledger/ProjectStatusDialog';
 import { getStatusDisplay, getConfirmMessage, normalizeKeywords } from './projectDetailUtils';
@@ -20,6 +21,7 @@ interface ProjectDetailPageProps {
 export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
   const { setSelectedProjectId } = useAppStore();
   const [editedProject, setEditedProject] = useState<ProjectItem>(project);
+  const [isNavCompact, setIsNavCompact] = useState(false);
   const [keywords, setKeywords] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'detail' | 'ledger'>('detail');
@@ -48,6 +50,18 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
       previousProjectIdRef.current = project.id;
     }
   }, [project]);
+
+  // Monitor window size for nav compact mode
+  useEffect(() => {
+    const handleResize = () => {
+      // Show compact nav when window width is less than 1400px
+      setIsNavCompact(window.innerWidth < 1400);
+    };
+
+    handleResize(); // Initial check
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleChange = (field: keyof ProjectItem, value: any) => {
     setEditedProject({ ...editedProject, [field]: value });
@@ -355,8 +369,26 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
 
           {/* Tab Content */}
           <div className="flex-1 overflow-hidden">
-            <TabsContent value="detail" className="h-full m-0 p-0">
-              <ScrollArea className="h-full px-6 py-6">
+            <TabsContent value="detail" className="h-full m-0 p-0 relative">
+              {/* Navigation - only show in detail tab */}
+              {activeTab === 'detail' && (
+                <div className="absolute top-0 right-0 h-full pointer-events-none z-10 pr-6">
+                  <div className="sticky top-6 pointer-events-auto">
+                    <ProjectDetailNav isCompact={isNavCompact} />
+                  </div>
+                </div>
+              )}
+              
+              <ScrollArea 
+                className="h-full" 
+                data-detail-scroll
+                style={{ 
+                  paddingTop: '1.5rem',
+                  paddingBottom: '1.5rem',
+                  paddingLeft: '1.5rem',
+                  paddingRight: isNavCompact ? '4rem' : '12rem' 
+                }}
+              >
                 <ProjectDetailBody
                   editedProject={editedProject}
                   isEditing={isEditing}
