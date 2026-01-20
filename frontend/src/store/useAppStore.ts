@@ -135,35 +135,70 @@ export interface CoreTeam {
 export interface Product {
   ai_analysis?: string;
   description?: string;
+  core_product?: string; // 核心产品
+  product_form?: string; // 产品形态
+  application_scenarios?: string[]; // 应用场景
+  key_specs?: string; // 关键指标
 }
 
 // 技术
 export interface Technology {
   ai_analysis?: string;
   description?: string;
+  ip_status?: string | {
+    patents_cn?: string;
+    patents_us?: string;
+    patents_pct?: string;
+    other?: string;
+  };
+  core_barriers?: string; // 核心壁垒
+  technical_approach?: string; // 技术路线
+  papers?: Array<{
+    title?: string;
+    journal?: string;
+    year?: string;
+  }> | string[];
 }
 
 // 市场
 export interface Market {
   ai_analysis?: string;
   description?: string;
+  target_market?: string; // 目标市场
+  market_size?: string; // 市场规模
+  key_drivers?: string[]; // 关键驱动因素
 }
 
 // 竞争
 export interface Competition {
   ai_analysis?: string;
   description?: string;
+  main_competitors?: string[]; // 主要竞争对手
+  differentiation?: string; // 差异化
+  competitive_comparison?: string; // 竞争对比
+  avoidance_strategy?: string; // 规避策略
 }
 
 // 财务状况
 export interface FinancialStatus {
   ai_analysis?: string;
   description?: string;
+  current_metrics?: string; // 当前指标
+  future_projection?: string; // 未来预测
 }
 
 // 融资历史
 export interface FinancingHistory {
   description?: string;
+  current_round?: string; // 当前轮次
+  funding_amount?: string; // 融资金额
+  funding_use?: string[]; // 资金用途
+  completed_rounds?: Array<{
+    date?: string;
+    round?: string;
+    amount?: string;
+    investors?: string[];
+  }>;
 }
 
 // 亮点
@@ -239,11 +274,35 @@ export interface ProjectItem {
   // 关键词
   keywords?: string[];
   // 溯源信息
-  field_page_idx?: string;
+  field_page_idx?: Record<string, string>;
   team_members_text?: string;
   bp_file?: string;
   // 工商信息（预留）
   business_registration?: any;
+  // 匹配的外部工商信息
+  company?: {
+    onto_id?: string;
+    company_name?: string;
+    credit_code?: string;
+    legal_representative?: string;
+    registered_capital?: string;
+    industry?: string;
+    region?: string;
+    company_stage?: string;
+    establish_time?: string;
+    social_staff_num?: number;
+    [key: string]: any;
+  };
+  // 字段对比信息
+  field_comparison?: Record<string, {
+    value: string;
+    candidates: Record<string, string>;
+    source: string;
+    confirmed: boolean;
+    confirmed_by?: string;
+    confirmed_at?: string;
+    page_idx?: string;
+  }>;
   // 评论
   comments?: ProjectComment[];
   

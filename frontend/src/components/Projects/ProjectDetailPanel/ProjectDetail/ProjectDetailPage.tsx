@@ -11,7 +11,9 @@ import { ProjectProgressLedger } from '../Ledger/ProjectProgressLedger';
 import { ProjectStatusDialog } from '../Ledger/ProjectStatusDialog';
 import { getStatusDisplay, getConfirmMessage, normalizeKeywords } from './projectDetailUtils';
 import { AcceptanceDialog } from '../Ledger/AcceptanceDialog';
+import { CompanyMatchDialog } from './CompanyMatchDialog';
 import { updateProject as updateProjectApi, initiateProject, getProjectIntakeDraft, mapDetailToProjectItem } from '@/lib/projectApi';
+import { useCompanyMatch } from './hooks/useCompanyMatch';
 
 interface ProjectDetailPageProps {
   project: ProjectItem;
@@ -36,20 +38,80 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
   const [acceptanceOpen, setAcceptanceOpen] = useState(false);
   const [acceptanceDraft, setAcceptanceDraft] = useState<ProjectItem | null>(null);
   const [acceptanceKeywords, setAcceptanceKeywords] = useState<string>('');
+  
+  // Company match hook
+  const {
+    isMatching,
+    matchDialogOpen,
+    companyCandidates,
+    isConfirmingMatch,
+    handleMatchCompany,
+    handleConfirmCompanyMatch,
+    setMatchDialogOpen,
+  } = useCompanyMatch({
+    project,
+    editedProject,
+    onSave: (updated) => {
+      setEditedProject(updated);
+      onSave(updated);
+    },
+  });
 
-  // Sync when project changes
+  // Load full project data on mount or when project changes
   useEffect(() => {
     const isProjectChanged = previousProjectIdRef.current !== project.id;
-
-    setEditedProject(project);
-    setKeywords(project.keywords?.join(', ') || '');
-    setIsEditing(false);
-    setPendingStatusUpdate(null);
 
     if (isProjectChanged) {
       previousProjectIdRef.current = project.id;
     }
-  }, [project]);
+    
+    // 每次项目改变时都从服务器加载完整数据（包含工商信息）
+    const loadFullProjectData = async () => {
+      try {
+        const data = await getProjectIntakeDraft(project.id, {
+          includeCompany: true,
+          includeComparison: true,
+        }) as { project: any; company?: any; field_comparison?: any };
+        
+        console.log('[ProjectDetailPage] ===== API 返回数据检查 =====');
+        console.log('[ProjectDetailPage] 完整响应:', data);
+        console.log('[ProjectDetailPage] data.project:', data.project);
+        console.log('[ProjectDetailPage] data.company:', data.company);
+        console.log('[ProjectDetailPage] data.field_comparison:', data.field_comparison);
+        console.log('[ProjectDetailPage] company 是否存在:', !!data.company);
+        console.log('[ProjectDetailPage] =====================================');
+        
+        // 合并响应数据，将 company 和 field_comparison 添加到 project 中
+        const mergedData = {
+          ...data.project,
+          company: data.company,
+          field_comparison: data.field_comparison,
+        };
+        
+        console.log('[ProjectDetailPage] mergedData:', mergedData);
+        console.log('[ProjectDetailPage] mergedData.company:', mergedData.company);
+        
+        // 映射项目数据（现在会自动包含 company 和 field_comparison）
+        const fullProject = mapDetailToProjectItem(mergedData, project);
+        
+        console.log('[ProjectDetailPage] 映射后的完整项目数据:', fullProject);
+        console.log('[ProjectDetailPage] company 数据:', fullProject.company);
+        
+        setEditedProject(fullProject);
+        setKeywords(fullProject.keywords?.join(', ') || '');
+      } catch (error) {
+        console.error('[ProjectDetailPage] 加载项目详情失败:', error);
+        // 如果加载失败，使用传入的 project 数据
+        setEditedProject(project);
+        setKeywords(project.keywords?.join(', ') || '');
+      }
+    };
+    
+    loadFullProjectData();
+    
+    setIsEditing(false);
+    setPendingStatusUpdate(null);
+  }, [project.id]); // 改为监听 project.id 而不是整个 project 对象
 
   // Monitor window size for nav compact mode
   useEffect(() => {
@@ -148,10 +210,20 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
     await updateProjectApi(project.id, updates);
     
     // 2. 重新拉取完整的项目信息
-    const fullProjectDetail = await getProjectIntakeDraft(project.id);
+    const data = await getProjectIntakeDraft(project.id, {
+      includeCompany: true,
+      includeComparison: true,
+    }) as { project: any; company?: any; field_comparison?: any };
+    
+    // 合并响应数据
+    const mergedData = {
+      ...data.project,
+      company: data.company,
+      field_comparison: data.field_comparison,
+    };
     
     // 3. 将后端返回的数据映射回 ProjectItem
-    const updatedProject = mapDetailToProjectItem(fullProjectDetail, {
+    const updatedProject = mapDetailToProjectItem(mergedData, {
       id: project.id,
       name: '',
       status: nextStatus,
@@ -195,8 +267,19 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         await updateProjectApi(project.id, payload);
         
         // 重新拉取完整的项目信息
-        const fullProjectDetail = await getProjectIntakeDraft(project.id);
-        const mappedProject = mapDetailToProjectItem(fullProjectDetail, {
+        const data = await getProjectIntakeDraft(project.id, {
+          includeCompany: true,
+          includeComparison: true,
+        }) as { project: any; company?: any; field_comparison?: any };
+        
+        // 合并响应数据
+        const mergedData = {
+          ...data.project,
+          company: data.company,
+          field_comparison: data.field_comparison,
+        };
+        
+        const mappedProject = mapDetailToProjectItem(mergedData, {
           id: project.id,
           name: '',
           status: nextStatus,
@@ -281,10 +364,20 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
       await updateProjectApi(project.id, updates);
       
       // 2. 重新拉取完整的项目信息
-      const fullProjectDetail = await getProjectIntakeDraft(project.id);
+      const data = await getProjectIntakeDraft(project.id, {
+        includeCompany: true,
+        includeComparison: true,
+      }) as { project: any; company?: any; field_comparison?: any };
+      
+      // 合并响应数据
+      const mergedData = {
+        ...data.project,
+        company: data.company,
+        field_comparison: data.field_comparison,
+      };
       
       // 3. 将后端返回的数据映射回 ProjectItem
-      const updatedProject = mapDetailToProjectItem(fullProjectDetail, {
+      const updatedProject = mapDetailToProjectItem(mergedData, {
         id: project.id,
         name: '',
         status: 'accepted',
@@ -342,6 +435,8 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         onStartAcceptance={handleStartAcceptance}
         onMarkEstablished={handleMarkEstablished}
         onClose={handleBack}
+        onMatchCompany={handleMatchCompany}
+        isMatching={isMatching}
       />
 
       {/* Content with Tabs */}
@@ -425,6 +520,15 @@ export function ProjectDetailPage({ project, onSave }: ProjectDetailPageProps) {
         onFieldChange={handleAcceptanceFieldChange}
         onCancel={handleCancelAcceptance}
         onConfirm={handleAcceptSave}
+      />
+
+      {/* Company Match Dialog */}
+      <CompanyMatchDialog
+        open={matchDialogOpen}
+        onOpenChange={setMatchDialogOpen}
+        candidates={companyCandidates}
+        onConfirm={handleConfirmCompanyMatch}
+        isConfirming={isConfirmingMatch}
       />
     </div>
   );

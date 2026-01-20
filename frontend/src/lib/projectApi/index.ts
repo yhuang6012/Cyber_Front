@@ -30,6 +30,9 @@ export {
   updateProject,
   deleteProject,
   generateAiSummary,
+  matchCompany,
+  confirmCompanyMatch,
+  getTaskStatus,
 } from './projects';
 
 // 文件操作

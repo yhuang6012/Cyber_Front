@@ -7,15 +7,33 @@ import type { ExtractedInfo, MyProjectsResponse } from './types';
  * GET /api/projects/{project_id}
  * 
  * @param projectId - 上传接口返回的 project_id
+ * @param options - 可选参数
+ *   - includeCompany: 是否返回关联的公司Ontology数据
+ *   - includeComparison: 是否返回字段对比数据
  */
-export async function getProjectIntakeDraft(projectId: string, tokenOverride?: string): Promise<ExtractedInfo> {
+export async function getProjectIntakeDraft(
+  projectId: string, 
+  options?: {
+    includeCompany?: boolean;
+    includeComparison?: boolean;
+  },
+  tokenOverride?: string
+): Promise<ExtractedInfo | { project: ExtractedInfo; company?: any; field_comparison?: any }> {
   const { authToken } = useAppStore.getState();
   const token = tokenOverride ?? authToken;
   if (!token) {
     throw new Error('请先登录');
   }
 
-  const url = `${getProjectBaseUrl()}/api/projects/${projectId}`;
+  const params = new URLSearchParams();
+  if (options?.includeCompany) {
+    params.set('include_company', 'true');
+  }
+  if (options?.includeComparison) {
+    params.set('include_comparison', 'true');
+  }
+
+  const url = `${getProjectBaseUrl()}/api/projects/${projectId}${params.toString() ? `?${params.toString()}` : ''}`;
 
   const resp = await fetch(url, {
     method: 'GET',
@@ -34,6 +52,11 @@ export async function getProjectIntakeDraft(projectId: string, tokenOverride?: s
 
   const data = await resp.json();
   console.log('[getProjectIntakeDraft] 返回结果:', data);
+  
+  // 如果请求了 include_company，返回完整对象；否则只返回 project
+  if (options?.includeCompany) {
+    return data;
+  }
   return data.project;
 }
 
@@ -152,7 +175,7 @@ export async function fetchMyProjectsWithDetails(options?: {
   const detailed = await Promise.all(
     mappedList.map(async (item) => {
       try {
-        const detail = await getProjectIntakeDraft(String(item.id), token);
+        const detail = await getProjectIntakeDraft(String(item.id), undefined, token) as any;
         return mapDetailToProjectItem(detail, item);
       } catch (err) {
         console.error('[projectApi] detail fetch failed for', item.id, err);
@@ -289,7 +312,7 @@ export async function initiateProject(
   const data = await resp.json();
   console.log('[projectApi] initiateProject response', data);
 
-  const fullProjectDetail = await getProjectIntakeDraft(projectId, token);
+  const fullProjectDetail = await getProjectIntakeDraft(projectId, undefined, token) as any;
   
   return mapDetailToProjectItem(fullProjectDetail, {
     id: projectId,
@@ -433,4 +456,198 @@ export async function deleteProject(
   }
 
   return true;
+}
+
+/**
+ * 匹配外部工商信息
+ * POST /api/projects/{project_id}/company/match
+ * 
+ * @param projectId - 项目ID
+ * @param companyName - 公司名称（可选，默认使用项目的 company_name）
+ * @returns { task_id, status, message }
+ */
+export async function matchCompany(
+  projectId: string,
+  companyName?: string,
+  tokenOverride?: string,
+): Promise<{ task_id: string; status: string; message: string }> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  const url = `${getProjectBaseUrl()}/api/projects/${encodeURIComponent(projectId)}/company/match`;
+  console.log('[projectApi] 🏢 匹配工商信息:', projectId, companyName);
+
+  try {
+    const body: any = {};
+    if (companyName) {
+      body.company_name = companyName;
+    }
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const errorBody = await resp.json().catch(() => ({}));
+      const errorMessage = errorBody.detail || errorBody.message || resp.statusText;
+      
+      if (resp.status === 404) {
+        throw new Error('项目不存在');
+      } else if (resp.status === 403) {
+        throw new Error('无权限');
+      }
+      
+      console.error('[projectApi] ❌ 工商信息匹配失败:', projectId, resp.status, errorMessage);
+      throw new Error(`工商信息匹配失败: ${errorMessage}`);
+    }
+
+    const data = await resp.json();
+    console.log('[projectApi] ✅ 工商信息匹配任务已创建:', projectId, data);
+    return data;
+  } catch (e: any) {
+    console.error('[projectApi] 💥 工商信息匹配异常:', projectId, e.message);
+    throw new Error(`匹配工商信息时发生错误: ${e.message}`);
+  }
+}
+
+/**
+ * 确认公司关联
+ * POST /api/projects/{project_id}/company/confirm
+ * 
+ * @param projectId - 项目ID
+ * @param companyName - 公司名称（用于精准匹配）
+ * @returns { confirmed: boolean, company_onto_id?, company?: {...}, message? }
+ */
+export async function confirmCompanyMatch(
+  projectId: string,
+  companyName: string,
+  tokenOverride?: string,
+): Promise<{
+  confirmed: boolean;
+  company_onto_id?: string;
+  company?: any;
+  message?: string;
+}> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  // 验证参数
+  if (!projectId || projectId.trim() === '') {
+    throw new Error('项目ID不能为空');
+  }
+  
+  if (!companyName || companyName.trim() === '') {
+    throw new Error('公司名称不能为空');
+  }
+
+  // 注意：根据API文档，company_name 应该作为 URL 查询参数，而不是请求体
+  const params = new URLSearchParams();
+  params.set('company_name', companyName.trim());
+  
+  const url = `${getProjectBaseUrl()}/api/projects/${encodeURIComponent(projectId)}/company/confirm?${params.toString()}`;
+  console.log('[projectApi] ✅ 确认公司关联 - URL:', url);
+  console.log('[projectApi] ✅ 确认公司关联 - projectId:', projectId, 'companyName:', companyName, 'type:', typeof companyName);
+
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!resp.ok) {
+      const errorBody = await resp.json().catch(() => ({}));
+      console.error('[projectApi] ❌ 确认公司关联失败 - 完整错误体:', projectId, resp.status, errorBody);
+      
+      // 更好地提取错误信息
+      let errorMessage = resp.statusText;
+      if (typeof errorBody.detail === 'string') {
+        errorMessage = errorBody.detail;
+      } else if (typeof errorBody.message === 'string') {
+        errorMessage = errorBody.message;
+      } else if (typeof errorBody.detail === 'object') {
+        // 如果 detail 是对象（如验证错误），尝试提取有用信息
+        if (Array.isArray(errorBody.detail)) {
+          errorMessage = errorBody.detail.map((e: any) => 
+            typeof e === 'string' ? e : (e.msg || JSON.stringify(e))
+          ).join('; ');
+        } else {
+          errorMessage = JSON.stringify(errorBody.detail);
+        }
+      }
+      
+      if (resp.status === 404) {
+        throw new Error('项目不存在或未找到匹配的公司');
+      } else if (resp.status === 403) {
+        throw new Error('无权限');
+      } else if (resp.status === 422) {
+        throw new Error(`请求参数错误: ${errorMessage}`);
+      }
+      
+      throw new Error(`确认公司关联失败 (${resp.status}): ${errorMessage}`);
+    }
+
+    const data = await resp.json();
+    console.log('[projectApi] ✅ 公司关联成功:', projectId, data);
+    return data;
+  } catch (e: any) {
+    console.error('[projectApi] 💥 确认公司关联异常:', projectId, e.message);
+    throw new Error(`确认公司关联时发生错误: ${e.message}`);
+  }
+}
+
+/**
+ * 查询任务状态
+ * GET /api/projects/tasks/{task_id}
+ * 
+ * @param taskId - 任务ID
+ * @returns { task_id, status: 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE', result?, error? }
+ */
+export async function getTaskStatus(
+  taskId: string,
+  tokenOverride?: string,
+): Promise<{
+  task_id: string;
+  status: 'PENDING' | 'STARTED' | 'SUCCESS' | 'FAILURE';
+  result?: any;
+  error?: string;
+}> {
+  const { authToken } = useAppStore.getState();
+  const token = tokenOverride ?? authToken;
+  if (!token) {
+    throw new Error('请先登录');
+  }
+
+  const url = `${getProjectBaseUrl()}/api/projects/tasks/${encodeURIComponent(taskId)}`;
+
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const errorBody = await resp.json().catch(() => ({}));
+    const errorMessage = errorBody.detail || errorBody.message || resp.statusText;
+    throw new Error(`查询任务状态失败: ${errorMessage}`);
+  }
+
+  const data = await resp.json();
+  return data;
 }

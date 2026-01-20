@@ -36,6 +36,7 @@ export function AcceptanceDialog({
               editedProject={draft}
               isEditing
               onFieldChange={onFieldChange}
+              hideComments={true}
             />
           )}
         </ScrollArea>

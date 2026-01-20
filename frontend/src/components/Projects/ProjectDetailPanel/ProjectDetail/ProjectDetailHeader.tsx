@@ -2,7 +2,7 @@ import { ProjectItem } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, X, Save } from 'lucide-react';
+import { Pencil, X, Save, Building2, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getStatusDisplay } from './projectDetailUtils';
 
@@ -20,6 +20,8 @@ interface ProjectDetailHeaderProps {
   onStartAcceptance: () => void;
   onMarkEstablished: () => void;
   onClose: () => void;
+  onMatchCompany: () => void;
+  isMatching: boolean;
 }
 
 export function ProjectDetailHeader({
@@ -35,6 +37,8 @@ export function ProjectDetailHeader({
   onMarkNotAccepted,
   onStartAcceptance,
   onMarkEstablished,
+  onMatchCompany,
+  isMatching,
 }: ProjectDetailHeaderProps) {
   return (
     <div className="px-8 pb-3 pt-2 bg-gradient-to-r from-background via-background to-muted/20">
@@ -62,6 +66,24 @@ export function ProjectDetailHeader({
                 {displayStatus.icon}
                 {displayStatus.label}
               </Badge>
+            )}
+            
+            {/* 匹配工商信息按钮 - 放在标题旁边 */}
+            {!isEditing && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onMatchCompany}
+                disabled={isMatching || !editedProject.companyName}
+                className="cursor-pointer gap-1.5 h-7 text-xs px-2.5 flex-shrink-0"
+              >
+                {isMatching ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Building2 className="size-3.5" />
+                )}
+                {isMatching ? '匹配中...' : '匹配工商'}
+              </Button>
             )}
           </div>
           
